@@ -44,18 +44,30 @@ DAG 结构:
 
 
 def _parse_review(raw: str, node_results: list[NodeResult]) -> ReviewResult:
+    import re
     text = raw.strip()
-    is_pass = text.upper().startswith("PASS")
-    failed_nodes: list[str] = []
+    # 去掉模型的思考过程和 markdown 标记
+    text = re.sub(r'<think>[\s\S]*?</think>', '', text)
+    text = re.sub(r'```(?:json)?\s*', '', text)
+    text = text.strip()
+    # 在全文搜索 PASS/FAIL（不仅仅行首）
+    is_pass = "PASS" in text.upper().split("\n")[0] if text else False
+    if not is_pass and text.upper().startswith("PASS"):
+        is_pass = True
+    # 更宽松的判断：如果包含 PASS 且不包含 FAIL，认为是 PASS
+    if not is_pass:
+        has_fail = bool(re.search(r'\bFAIL\b', text, re.IGNORECASE))
+        has_pass = bool(re.search(r'\bPASS\b', text, re.IGNORECASE))
+        is_pass = has_pass and not has_fail
 
+    failed_nodes: list[str] = []
     if not is_pass:
         # 提取被提及的节点 ID
-        passed_ids = {nr.node_id for nr in node_results if nr.status.value == "passed"}
+        all_ids = {nr.node_id for nr in node_results}
         for line in text.split("\n"):
-            for nid in passed_ids:
+            for nid in all_ids:
                 if nid in line:
                     failed_nodes.append(nid)
-                    break
 
     return ReviewResult(
         passed=is_pass,

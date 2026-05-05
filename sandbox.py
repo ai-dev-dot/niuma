@@ -65,26 +65,37 @@ def _execute_typescript(
     test_file.write_text(test_content, encoding="utf-8")
 
     # 在临时目录里写一个最小 jest.config，让 jest 能找到 ts-jest preset
+    # 将 jest.config 写入临时目录，通过 transform 显式引用 ts-jest
+    tsj = str(_PROJECT_ROOT / "node_modules" / "ts-jest").replace(chr(92), '/')
     jest_config = Path(tmpdir) / "jest.config.js"
-    jest_config.write_text(f"""const path = require('path');
-module.exports = {{
-  preset: 'ts-jest',
+    jest_config.write_text(f"""module.exports = {{
+  transform: {{ '^.+\\\\.ts$': '{tsj}' }},
   testEnvironment: 'node',
   testMatch: ['**/*.test.ts'],
   testTimeout: 30000,
   rootDir: '{tmpdir.replace(chr(92), '/')}',
-  // 指向项目根目录的 node_modules
-  moduleDirectories: ['{str(_PROJECT_ROOT).replace(chr(92), '/')}/node_modules', 'node_modules'],
 }};\n""", encoding="utf-8")
 
+    # 找到 npx（Windows 用 npx.cmd，Linux 用 npx）
+    import shutil as _shutil
+    npx = _shutil.which("npx") or _shutil.which("npx.cmd")
+    if not npx:
+        return SandboxResult(
+            exit_code=-1,
+            stdout="",
+            stderr=_bilingual(
+                "npx 未找到，请安装 Node.js | npx not found, install Node.js",
+                "npx not found, install Node.js",
+            ),
+        )
     return _run_subprocess(
         [
-            "npx", "--no-install", "jest",
+            npx, "--no-install", "jest",
             "--config", str(jest_config),
             "--no-color", "--verbose",
             "--roots", tmpdir,
         ],
-        cwd=str(_PROJECT_ROOT),  # 从项目根执行，确保 npx 找本地 jest
+        cwd=str(_PROJECT_ROOT),
         cpu_timeout=cpu_timeout,
         memory_limit_mb=memory_limit_mb,
     )
@@ -132,6 +143,8 @@ def _run_subprocess(
             cwd=cwd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=cpu_timeout,
             preexec_fn=set_limits if os.name != "nt" else None,
         )

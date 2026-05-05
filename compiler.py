@@ -50,6 +50,13 @@ def _call_compiler_retry(task_description: str, prev_json: str, errors: list[str
 
 def _parse_dag(raw: str) -> DAG:
     json_str = raw.strip()
+    # 去掉 <｜end▁of▁thinking｜>模型的响应可能包含思考过程，需要先提取出纯JSON部分
+    # Strip thinking blocks and markdown fences before finding JSON
+    # 去掉 <think>...</think> 思考块
+    json_str = re.sub(r'<think>[\s\S]*?</think>', '', json_str)
+    # 去掉 markdown 代码围栏标记
+    json_str = re.sub(r'```(?:json)?\s*', '', json_str)
+    json_str = json_str.strip()
     m = re.search(r'\{[\s\S]*\}', json_str)
     if m:
         json_str = m.group(0)

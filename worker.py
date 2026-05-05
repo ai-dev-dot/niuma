@@ -8,14 +8,15 @@ import sandbox
 from models import DAGNode, NodeResult, NodeStatus, SandboxResult
 
 
-def execute_node(node: DAGNode, completed_context: dict[str, str]) -> NodeResult:
-    """在沙箱中执行单个 DAG 节点，弱模型循环修复直到测试通过或超限。"""
+def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedback: str = "") -> NodeResult:
+    """在沙箱中执行单个 DAG 节点，弱模型循环修复直到测试通过或超限。
+    review_feedback: 审核器返回的修改建议，会注入到首次迭代的 prompt 中。"""
     result = NodeResult(node_id=node.node_id)
 
     for iteration in range(1, node.max_iterations + 1):
         result.iteration_count = iteration
 
-        code = _generate_code(node, completed_context, previous=result)
+        code = _generate_code(node, completed_context, previous=result, review_feedback=review_feedback)
         if not code.strip():
             result.status = NodeStatus.FAILED
             result.test_output = "弱模型未生成有效代码"
@@ -41,7 +42,7 @@ def execute_node(node: DAGNode, completed_context: dict[str, str]) -> NodeResult
     return result
 
 
-def _generate_code(node: DAGNode, context: dict[str, str], previous: NodeResult) -> str:
+def _generate_code(node: DAGNode, context: dict[str, str], previous: NodeResult, review_feedback: str = "") -> str:
     sig = node.signature
     prompt = f"""实现以下 TypeScript 函数，使其通过所有测试。
 
@@ -56,6 +57,12 @@ def _generate_code(node: DAGNode, context: dict[str, str], previous: NodeResult)
         prompt += f"\n\n已完成依赖节点的代码:\n"
         for dep_id, dep_code in context.items():
             prompt += f"\n// --- {dep_id} ---\n{dep_code}\n"
+
+    if review_feedback:
+        prompt += f"""
+
+审核反馈（请根据此反馈修改你的实现）:
+{review_feedback}"""
 
     prompt += f"""
 
@@ -101,8 +108,15 @@ def _extract_code(raw: str) -> str:
     return text
 
 
-def _fmt_params(params: list[dict[str, str]]) -> str:
-    return ", ".join(f"{p['name']}: {p['type']}" for p in params)
+def _fmt_params(params: list) -> str:
+    """格式化参数列表。兼容对象格式 [{name, type}] 和字符串格式 ['name: type']。"""
+    result: list[str] = []
+    for p in params:
+        if isinstance(p, dict):
+            result.append(f"{p['name']}: {p['type']}")
+        elif isinstance(p, str):
+            result.append(p)
+    return ", ".join(result)
 
 
 def _fmt_list(items: list[str]) -> str:

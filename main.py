@@ -334,7 +334,7 @@ def run_task(task_description: str, project_path: str = "") -> bool:
         for node in dag.topological_order():
             if node.node_id in rv.failed_nodes:
                 print(f"    重做 | retry: {node.node_id}...")
-                nr = worker.execute_node(node, completed_context)
+                nr = worker.execute_node(node, completed_context, review_feedback=rv.suggestions)
                 for j, old in enumerate(node_results):
                     if old.node_id == node.node_id:
                         node_results[j] = nr
