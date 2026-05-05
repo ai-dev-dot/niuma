@@ -97,18 +97,24 @@ python -m pytest system_tests/ -v
 
 ```
 niuma/
-  main.py             # CLI 入口 + pipeline 编排器
-  compiler.py          # 强模型: 自然语言 → 带类型的 DAG JSON
-  worker.py            # 弱模型: 生成 → 沙箱执行 → 修复 → 重试循环
-  reviewer.py          # 强模型: 合约合规性审核
-  sandbox.py           # 子进程沙箱（CPU/内存限制 + 临时目录隔离）
-  llm.py               # OpenAI 兼容 API 客户端（指数退避重试）
-  metrics.py           # JSONL 格式的 token 消耗 + 成功率数据
-  models.py            # 共享数据类（DAGNode, SandboxResult, ...）
-  dag_schema.json      # DAG 节点的 JSON Schema 校验规则
-  tasks/               # 示例任务描述文件（.tsk）
-  system_tests/        # pytest 测试套件（29 个测试）
-  docs/                # 设计文档 + 测试计划
+  cli.py               # 交互式 TUI 菜单（入口）
+  config.py             # 强/弱模型配置管理
+  project_manager.py    # 项目创建/打开/删除
+  compiler.py           # 强模型: 自然语言 → 带类型的 DAG JSON
+  worker.py             # 弱模型: 生成 → 沙箱执行 → 修复 → 重试循环
+  reviewer.py           # 强模型: 合约合规性审核
+  sandbox.py            # 子进程沙箱（CPU/内存限制 + 临时目录隔离）
+  llm.py                # OpenAI 兼容 API 客户端（指数退避重试）
+  metrics.py            # JSONL 格式的 token 消耗 + 成功率数据
+  models.py             # 共享数据类（DAGNode, SandboxResult, ...）
+  main.py               # Pipeline 编排器（编译 → 执行 → 审核）
+  dag_schema.json       # DAG 节点的 JSON Schema 校验规则
+  requirements.txt      # Python 依赖
+  niuma                 # 一键启动脚本（bash）
+  niuma.bat             # 一键启动脚本（Windows）
+  tasks/                # 示例任务描述文件（.tsk）
+  system_tests/         # pytest 测试套件（42 个测试）
+  docs/                 # 设计文档 + 测试计划
 ```
 
 ## 语言策略
@@ -118,7 +124,7 @@ DAG 节点的 `signature.language` 字段决定用哪个运行时。加新语言
 
 ## 当前状态
 
-原型阶段——29 个系统测试全部通过。compiler → worker → reviewer 闭环在用 mock API 的情况下跑通。
+原型阶段——42 个系统测试全部通过。compiler → worker → reviewer 闭环在用 mock API 的情况下跑通。
 要用真实 LLM 端到端运行，配置 `.env` 文件即可。
 
 ## 设计决策记录

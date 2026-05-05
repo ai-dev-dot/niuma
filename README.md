@@ -95,18 +95,24 @@ python -m pytest system_tests/ -v
 
 ```
 niuma/
-  main.py             # CLI entry point + pipeline orchestrator
-  compiler.py          # Strong model: natural language → typed DAG JSON
-  worker.py            # Weak model: generate → sandbox → fix → retry loop
-  reviewer.py          # Strong model: contract compliance audit
-  sandbox.py           # Subprocess execution with resource limits
-  llm.py               # OpenAI-compatible API client (exponential backoff)
-  metrics.py           # JSONL metrics output
-  models.py            # Shared dataclasses (DAGNode, SandboxResult, ...)
-  dag_schema.json      # JSON Schema for DAG validation
-  tasks/               # Example task descriptions (.tsk files)
-  system_tests/        # pytest suite (29 tests)
-  docs/                # Design docs and test plans
+  cli.py               # Interactive TUI menu (entry point)
+  config.py             # Strong/weak model configuration management
+  project_manager.py    # Project create/open/delete workflows
+  compiler.py           # Strong model: natural language → typed DAG JSON
+  worker.py             # Weak model: generate → sandbox → fix → retry loop
+  reviewer.py           # Strong model: contract compliance audit
+  sandbox.py            # Subprocess execution with resource limits
+  llm.py                # OpenAI-compatible API client (exponential backoff)
+  metrics.py            # JSONL metrics output
+  models.py             # Shared dataclasses (DAGNode, SandboxResult, ...)
+  main.py               # Pipeline orchestrator (compile → execute → review)
+  dag_schema.json       # JSON Schema for DAG validation
+  requirements.txt      # Python dependencies
+  niuma                 # One-command launcher (bash)
+  niuma.bat             # One-command launcher (Windows)
+  tasks/                # Example task descriptions (.tsk files)
+  system_tests/         # pytest suite (42 tests)
+  docs/                 # Design docs and test plans
 ```
 
 ## Language Strategy
@@ -118,7 +124,7 @@ don't need to change.
 
 ## Status
 
-Prototype — 29 system tests passing. The compiler → worker → reviewer loop is functional with
+Prototype — 42 system tests passing. The compiler → worker → reviewer loop is functional with
 mocked API calls. To run end-to-end with real LLMs, configure your `.env` file.
 
 ## License
