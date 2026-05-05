@@ -1,0 +1,28 @@
+# Changelog
+
+## 0.1.0 (2026-05-05)
+
+Initial prototype release.
+
+### Core Engine
+
+- Compiler: strong model translates natural language tasks into typed DAG JSON with schema validation
+- Worker: weak model generates code in a sandbox, runs tests, reads errors, fixes, and retries
+- Reviewer: strong model audits all node outputs, returns PASS/FAIL with specific suggestions
+- Sandbox: subprocess execution with resource limits, supports TypeScript (Jest) and Python (pytest)
+- Git protocol: strong-weak model communication via `niuma/<task-id>` branches — compiler commits DAG, worker commits code, reviewer commits verdict
+
+### User Experience
+
+- **One-command setup:** `./niuma` auto-installs dependencies and opens the TUI menu
+- **Provider presets:** 9 vendors pre-configured — pick a provider, enter your API key, done
+  - OpenAI, DeepSeek, Groq, OpenRouter, SiliconFlow, ZhipuAI, DashScope, MiniMax, Kimi
+- **Project management:** create/open/delete projects backed by git repositories
+- **Quick configure:** test connection button to verify API credentials
+- `--doctor` checks all prerequisites, `--dry-run` validates pipeline structure with mocks
+
+### In the Box
+
+- 29 system tests covering compiler, worker, sandbox, reviewer, and models
+- Bilingual README (English + 中文) and design documentation
+- Windows and Linux support (bash + bat launchers)
