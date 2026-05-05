@@ -7,14 +7,23 @@ import llm
 from models import DAG, Contract, DAGNode, FunctionSignature
 
 
-def compile_task(task_description: str) -> DAG:
+def compile_task(task_description: str, verbose: bool = False) -> DAG:
     """将任务描述编译为 DAG。强模型调用 → JSON 解析 → Schema 校验 → 重试。"""
+    if verbose:
+        print("  [强模型] 正在分析任务并分解为 DAG...")
+
     dag_json_str = _call_compiler(task_description)
 
     for attempt in range(2):
-        dag = _parse_dag(dag_json_str)  # noqa: F823
+        dag = _parse_dag(dag_json_str)
         errors = _validate_dag(dag)
         if not errors:
+            if verbose:
+                print(f"  [强模型] DAG 编译完成: {len(dag.nodes)} 个节点")
+                for i, node in enumerate(dag.nodes, 1):
+                    deps = f" (依赖: {', '.join(str(d) for d in node.dependencies)})" if node.dependencies else ""
+                    print(f"    节点{i}: {node.node_id} — {node.name}{deps}")
+                    print(f"      语言: {node.signature.language}, 最多{node.max_iterations}轮迭代")
             return dag
         if attempt < 1:
             dag_json_str = _call_compiler_retry(task_description, dag_json_str, errors)
@@ -24,11 +33,51 @@ def compile_task(task_description: str) -> DAG:
 
 def _call_compiler(task_description: str) -> str:
     system = """你是一个任务编译器。将任务描述分解为带类型约束和可自动验证测试的子任务。
-输出时必须只输出一个有效的 JSON 对象，内容为 { "nodes": [...] }。
-不要输出任何 JSON 之外的内容。
-每个节点包含: node_id, name, signature(language/function_name/params/return_type/allowed_imports/methods),
-contract(preconditions/postconditions/invariants), test_skeleton, max_iterations(默认10), dependencies(数组)。
-约束: language 取 "typescript" 或 "python"；allowed_imports 仅标准库；test_skeleton 是独立可执行的测试代码；最多5个节点。"""
+
+输出时必须只输出一个有效的 JSON 对象，不要加任何解释或 markdown 标记。
+JSON 格式: { "nodes": [...] }
+
+每个节点字段（全部必填）:
+- node_id: 字符串，唯一标识
+- name: 字符串，节点描述
+- signature: { language, function_name, params, return_type, allowed_imports, methods }
+  - params 格式: [{"name": "参数名", "type": "类型"}, ...]
+  - methods 格式: [{"name": "方法名", "params": [...], "return_type": "类型"}, ...]
+- contract: { preconditions, postconditions, invariants } 每个都是字符串数组
+- test_skeleton: 字符串，独立可执行的测试代码
+- max_iterations: 整数，默认10
+- dependencies: 字符串数组，依赖的 node_id 列表
+
+约束: language="typescript" 或 "python"；allowed_imports 仅标准库；最多5个节点。
+
+=== 示例（任务: "实现一个计数器，支持增减和重置"） ===
+
+{"nodes": [
+  {
+    "node_id": "counter_core",
+    "name": "计数器核心逻辑",
+    "signature": {
+      "language": "typescript",
+      "function_name": "createCounter",
+      "params": [{"name": "initialValue", "type": "number"}],
+      "return_type": "object",
+      "methods": [
+        {"name": "increment", "params": [], "return_type": "number"},
+        {"name": "decrement", "params": [], "return_type": "number"},
+        {"name": "reset", "params": [], "return_type": "void"}
+      ],
+      "allowed_imports": []
+    },
+    "contract": {
+      "preconditions": ["initialValue 必须是整数"],
+      "postconditions": ["increment 返回当前值+1", "decrement 返回当前值-1", "reset 将值恢复为 initialValue"],
+      "invariants": ["计数值始终为整数"]
+    },
+    "test_skeleton": "test('counter', () => { const c = createCounter(0); expect(c.increment()).toBe(1); expect(c.decrement()).toBe(0); c.reset(); expect(c.increment()).toBe(1); });",
+    "max_iterations": 10,
+    "dependencies": []
+  }
+]}"""
 
     resp = llm.call_strong(task_description, system=system)
     return resp.content
@@ -49,12 +98,9 @@ def _call_compiler_retry(task_description: str, prev_json: str, errors: list[str
 
 
 def _parse_dag(raw: str) -> DAG:
+    """解析模型返回的 JSON。具备多层容错：去掉思考块/markdown、类型强制、格式兼容。"""
     json_str = raw.strip()
-    # 去掉 <｜end▁of▁thinking｜>模型的响应可能包含思考过程，需要先提取出纯JSON部分
-    # Strip thinking blocks and markdown fences before finding JSON
-    # 去掉 <think>...</think> 思考块
     json_str = re.sub(r'<think>[\s\S]*?</think>', '', json_str)
-    # 去掉 markdown 代码围栏标记
     json_str = re.sub(r'```(?:json)?\s*', '', json_str)
     json_str = json_str.strip()
     m = re.search(r'\{[\s\S]*\}', json_str)
@@ -62,43 +108,69 @@ def _parse_dag(raw: str) -> DAG:
         json_str = m.group(0)
     data = json.loads(json_str)
 
+    from models import MethodSignature
+
     nodes = []
     for n in data.get("nodes", []):
         sig_data = n.get("signature", {})
-        methods = sig_data.get("methods", [])
-        if isinstance(methods, list):
-            from models import MethodSignature
-            methods = [
-                MethodSignature(
-                    name=m.get("name", ""),
-                    params=m.get("params", []),
-                    return_type=m.get("return_type", "void"),
-                )
-                for m in methods
-            ]
-
         contract_data = n.get("contract", {})
+
+        # 容错：methods 支持 dict 和 string 两种格式
+        methods_raw = sig_data.get("methods", [])
+        methods: list[MethodSignature] = []
+        if isinstance(methods_raw, list):
+            for m in methods_raw:
+                if isinstance(m, dict):
+                    methods.append(MethodSignature(
+                        name=str(m.get("name", "")),
+                        params=_safe_list(m.get("params", [])),
+                        return_type=str(m.get("return_type", "void")),
+                    ))
+                elif isinstance(m, str):
+                    try:
+                        name_part = m.split("(")[0].strip()
+                        return_type = m.split("):")[1].strip() if "):" in m else "void"
+                        methods.append(MethodSignature(name=name_part, params=[], return_type=return_type))
+                    except (IndexError, ValueError):
+                        pass
+
+        # 容错：test_skeleton 可能为非字符串
+        tsk = n.get("test_skeleton", "")
+        if isinstance(tsk, list):
+            tsk = "\n".join(str(x) for x in tsk)
+        elif not isinstance(tsk, str):
+            tsk = str(tsk)
+
         nodes.append(DAGNode(
-            node_id=n["node_id"],
-            name=n.get("name", ""),
+            node_id=str(n.get("node_id", "")),
+            name=str(n.get("name", "")),
             signature=FunctionSignature(
-                language=sig_data.get("language", "typescript"),
-                function_name=sig_data.get("function_name", ""),
-                params=sig_data.get("params", []),
-                return_type=sig_data.get("return_type", "void"),
-                allowed_imports=sig_data.get("allowed_imports", []),
+                language=str(sig_data.get("language", "typescript")),
+                function_name=str(sig_data.get("function_name", "")),
+                params=_safe_list(sig_data.get("params", [])),
+                return_type=str(sig_data.get("return_type", "void")),
+                allowed_imports=_safe_list(sig_data.get("allowed_imports", [])),
                 methods=methods,
             ),
             contract=Contract(
-                preconditions=contract_data.get("preconditions", []),
-                postconditions=contract_data.get("postconditions", []),
-                invariants=contract_data.get("invariants", []),
+                preconditions=_safe_list(contract_data.get("preconditions", [])),
+                postconditions=_safe_list(contract_data.get("postconditions", [])),
+                invariants=_safe_list(contract_data.get("invariants", [])),
             ),
-            test_skeleton=n.get("test_skeleton", ""),
-            max_iterations=n.get("max_iterations", 10),
-            dependencies=n.get("dependencies", []),
+            test_skeleton=tsk,
+            max_iterations=int(n.get("max_iterations", 10)),
+            dependencies=[str(d) for d in _safe_list(n.get("dependencies", []))],
         ))
     return DAG(nodes=nodes)
+
+
+def _safe_list(val) -> list:
+    """确保值是一个 list；None → 空列表，非列表 → 包裹为单元素列表。"""
+    if isinstance(val, list):
+        return val
+    if val is None:
+        return []
+    return [val]
 
 
 def _validate_dag(dag: DAG) -> list[str]:

@@ -36,7 +36,7 @@ PROVIDERS = {
         "name": "DeepSeek",
         "base_url": "https://api.deepseek.com/v1",
         "key_hint": "https://platform.deepseek.com/api_keys",
-        "strong_models": ["deepseek-chat", "deepseek-reasoner", "deepseek-v4-flash"],
+        "strong_models": ["deepseek-v4-pro", "deepseek-reasoner", "deepseek-chat"],
         "weak_models": ["deepseek-chat", "deepseek-v4-flash"],
     },
     "groq": {

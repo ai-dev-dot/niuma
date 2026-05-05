@@ -8,10 +8,14 @@ import sandbox
 from models import DAGNode, NodeResult, NodeStatus, SandboxResult
 
 
-def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedback: str = "") -> NodeResult:
+def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedback: str = "", verbose: bool = False) -> NodeResult:
     """在沙箱中执行单个 DAG 节点，弱模型循环修复直到测试通过或超限。
     review_feedback: 审核器返回的修改建议，会注入到首次迭代的 prompt 中。"""
     result = NodeResult(node_id=node.node_id)
+
+    if verbose:
+        feedback_note = " (含审核反馈)" if review_feedback else ""
+        print(f"  [弱模型] 开始执行节点: {node.node_id} — {node.name}{feedback_note}")
 
     for iteration in range(1, node.max_iterations + 1):
         result.iteration_count = iteration
@@ -20,6 +24,8 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedba
         if not code.strip():
             result.status = NodeStatus.FAILED
             result.test_output = "弱模型未生成有效代码"
+            if verbose:
+                print(f"    第{iteration}轮: 模型未返回代码，节点失败")
             return result
 
         result.generated_code = code
@@ -30,8 +36,18 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedba
         )
         result.test_output = sb_result.stdout + "\n" + sb_result.stderr
 
+        if verbose:
+            status = "PASS" if sb_result.passed else "FAIL"
+            code_preview = code[:80].replace('\n', ' ').strip()
+            err_preview = sb_result.stderr[:100].replace('\n', ' ').strip() if not sb_result.passed else ""
+            print(f"    第{iteration}轮: [{status}] {code_preview}...")
+            if err_preview:
+                print(f"      错误: {err_preview}")
+
         if sb_result.passed:
             result.status = NodeStatus.PASSED
+            if verbose:
+                print(f"    [OK] {node.node_id} 通过 ({iteration} 轮迭代)")
             return result
 
         # 指数退避处理 429
@@ -39,6 +55,8 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedba
             time.sleep(min(2 ** (iteration - 1), 60))
 
     result.status = NodeStatus.FAILED
+    if verbose:
+        print(f"    [FAIL] {node.node_id} 失败 ({node.max_iterations} 轮迭代后未通过)")
     return result
 
 

@@ -327,15 +327,18 @@ def _project_menu(project: dict) -> None:
 
         print("  1. 运行任务 | Run Task")
         print("  2. 新建任务文件 | New Task File")
+        print("  3. Git 提交记录 | Git Commits")
         print("  D. 删除项目 | Delete Project")
-        print("  3. 返回 | Back")
+        print("  4. 返回 | Back")
         print()
 
-        choice = _ask("请选择 | Select [1-3]", "3").lower()
+        choice = _ask("请选择 | Select [1-4]", "4").lower()
         if choice == "1":
             _run_task_in_project(project)
         elif choice == "2":
             _create_task_file(project)
+        elif choice == "3":
+            _git_menu(project)
         elif choice == "d":
             confirm = _ask(f"  确认删除 '{project['name']}'? (输入项目名确认 | type name to confirm)")
             if confirm == project["name"]:
@@ -348,8 +351,55 @@ def _project_menu(project: dict) -> None:
             else:
                 print("  已取消 | Cancelled.")
                 _wait()
-        elif choice == "3":
+        elif choice == "4":
             return
+
+
+def _git_menu(project: dict) -> None:
+    """Git 提交记录查看和推送。"""
+    proj_path = project_manager.get_project_path(project["name"])
+    if not proj_path:
+        print(f"  [!!] 项目路径不存在 | Project path not found")
+        _wait()
+        return
+
+    while True:
+        _clear()
+        _title(f"Git 记录 | Git Log — {project['name']}")
+
+        # 显示 git log
+        log_lines = project_manager.get_all_branches_log(proj_path)
+        if log_lines:
+            print(f"  {log_lines[:25]}")
+        else:
+            print("  (无提交记录 | no commits)")
+
+        # 当前分支
+        current_branch = project_manager.git_run(proj_path, ["branch", "--show-current"], check=False).strip()
+        branches = project_manager.list_task_branches(proj_path)
+        print()
+        print(f"  当前分支 | Current: {current_branch}")
+        if branches:
+            print(f"  niuma 任务分支 | task branches: {', '.join(branches[:10])}")
+        print()
+
+        if branches:
+            print(f"  P. Push 当前分支到远程 | Push current branch to remote")
+        print(f"  B. 返回 | Back")
+        print()
+
+        choice = _ask("请选择 | Select", "B").lower()
+        if choice == "b":
+            return
+        elif choice == "p" and branches:
+            target = current_branch if current_branch.startswith("niuma") else branches[0]
+            if not current_branch.startswith("niuma"):
+                print(f"  当前不在 niuma 分支，将 push: {target}")
+            proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
+            print(f"  Pushing {target}...")
+            result = project_manager.push_branch(proj_path, target, proxy=proxy)
+            print(result if result else "  [OK] Push 完成 | Done")
+            _wait()
 
 
 def _run_task_in_project(project: dict) -> None:
@@ -395,7 +445,7 @@ def _run_task_in_project(project: dict) -> None:
             orig_dir = os.getcwd()
             try:
                 os.chdir(str(proj_path))
-                success = _main.run_task(task_desc, str(proj_path))
+                success = _main.run_task(task_desc, str(proj_path), verbose=True)
             except RuntimeError as e:
                 os.chdir(orig_dir)
                 print(f"  [!!] {e}")

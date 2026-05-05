@@ -233,3 +233,31 @@ def list_task_branches(repo_path: str | Path) -> list[str]:
     if not output:
         return []
     return [b.strip().lstrip("* ") for b in output.splitlines() if b.strip()]
+
+
+def get_niuma_log(repo_path: str | Path, max_count: int = 20) -> list[str]:
+    """返回 niuma 任务分支的 git log 摘要。"""
+    output = git_run(repo_path, [
+        "log", "--oneline", "--all", "--graph",
+        f"--max-count={max_count}",
+    ], check=False)
+    if not output:
+        return []
+    return output.splitlines()
+
+
+def push_branch(repo_path: str | Path, branch: str, proxy: str = "") -> str:
+    """Push 指定分支到 origin。返回输出或错误。"""
+    if proxy:
+        cmd = ["git", "-c", f"http.proxy={proxy}", "-c", f"https.proxy={proxy}", "push", "origin", branch]
+    else:
+        cmd = ["git", "push", "origin", branch]
+    return git_run(repo_path, cmd, check=False)
+
+
+def get_all_branches_log(repo_path: str | Path) -> str:
+    """返回当前仓库的完整 git log（含所有 niuma 分支）。"""
+    output = git_run(repo_path, [
+        "log", "--oneline", "--all", "--max-count=30",
+    ], check=False)
+    return output if output else ""

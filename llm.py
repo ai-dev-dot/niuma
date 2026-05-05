@@ -17,6 +17,16 @@ class LLMResponse:
     output_tokens: int
 
 
+# 模块级日志回调，main.py 设置后所有 API 调用自动记录
+_log_callback: object = None
+
+
+def set_log_callback(cb) -> None:
+    """设置全局日志回调。main.py 在 run_task 中调用。"""
+    global _log_callback
+    _log_callback = cb
+
+
 def call(
     prompt: str,
     *,
@@ -27,6 +37,7 @@ def call(
     api_key: str = "",
     base_url: str = "",
     max_retries: int = 3,
+    log_callback=None,
 ) -> LLMResponse:
     """调用 LLM API，含指数退避重试。"""
 
@@ -82,11 +93,24 @@ def call(
             out_tok = usage.get("completion_tokens", 0)
             _log(f"\r  ✓ {model} ({elapsed:.1f}s, {in_tok}+{out_tok} tokens)")
 
-            return LLMResponse(
+            result = LLMResponse(
                 content=content.strip(),
                 input_tokens=in_tok,
                 output_tokens=out_tok,
             )
+            log_data = {
+                "model": model,
+                "prompt_chars": len(prompt),
+                "input_tokens": in_tok,
+                "output_tokens": out_tok,
+                "duration_s": round(elapsed, 1),
+                "content_preview": content.strip()[:200],
+            }
+            if log_callback:
+                log_callback(log_data)
+            if _log_callback:
+                _log_callback(log_data)
+            return result
         except urllib.error.HTTPError as e:
             last_error = e
             last_status = e.code

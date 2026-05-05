@@ -6,11 +6,26 @@ import llm
 from models import DAG, NodeResult, ReviewResult
 
 
-def review(task_description: str, dag: DAG, node_results: list[NodeResult]) -> ReviewResult:
+def review(task_description: str, dag: DAG, node_results: list[NodeResult], verbose: bool = False) -> ReviewResult:
     """强模型审核所有节点输出。返回 PASS 或 FAIL + 具体建议。"""
+    if verbose:
+        passed = sum(1 for nr in node_results if nr.status.value == "passed")
+        total = len(node_results)
+        print(f"  [强模型] 开始审核 {total} 个节点 (通过: {passed})...")
+
     prompt = _build_review_prompt(task_description, dag, node_results)
     resp = llm.call_strong(prompt, max_tokens=1500)
-    return _parse_review(resp.content, node_results)
+    rv = _parse_review(resp.content, node_results)
+
+    if verbose:
+        if rv.passed:
+            print(f"  [强模型] 审核结论: PASS — 所有合约满足")
+        else:
+            print(f"  [强模型] 审核结论: FAIL — {len(rv.failed_nodes)} 个节点需修复")
+            if rv.suggestions:
+                print(f"    建议: {rv.suggestions[:200]}")
+
+    return rv
 
 
 def _build_review_prompt(task_description: str, dag: DAG, node_results: list[NodeResult]) -> str:
