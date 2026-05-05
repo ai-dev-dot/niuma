@@ -32,7 +32,9 @@ def compile_task(task_description: str, verbose: bool = False) -> DAG:
 
 
 def _call_compiler(task_description: str) -> str:
-    system = """你是一个任务编译器。将任务描述分解为带类型约束和可自动验证测试的子任务。
+    system = """你是一个任务编译器。将复杂任务分解为多个小的、独立的子任务。
+分解原则：每个节点聚焦一个关注点（如数据结构、调度逻辑、对外接口），但不必过度拆分——
+一个节点可以包含2-4个紧密相关的方法。**关键是把不同性质的职责分开**（比如数据存储和定时调度不要混在同一个节点）。
 
 输出时必须只输出一个有效的 JSON 对象，不要加任何解释或 markdown 标记。
 JSON 格式: { "nodes": [...] }
@@ -48,34 +50,59 @@ JSON 格式: { "nodes": [...] }
 - max_iterations: 整数，默认10
 - dependencies: 字符串数组，依赖的 node_id 列表
 
-约束: language="typescript" 或 "python"；allowed_imports 仅标准库；最多5个节点。
+约束:
+- language="typescript" 或 "python"；allowed_imports 仅标准库；最多5个节点
+- **不同性质的职责要分开**（数据存储、调度逻辑、对外接口各自成节点）
+- 2节点示例只是一个参考模式。简单任务可以单节点，复杂任务合理拆分
 
-=== 示例（任务: "实现一个计数器，支持增减和重置"） ===
+=== 示例：2节点分解（任务: "实现一个栈，支持 push/pop/peek/size"） ===
 
 {"nodes": [
   {
-    "node_id": "counter_core",
-    "name": "计数器核心逻辑",
+    "node_id": "stack_store",
+    "name": "栈数据容器",
     "signature": {
       "language": "typescript",
-      "function_name": "createCounter",
-      "params": [{"name": "initialValue", "type": "number"}],
+      "function_name": "createStackStore",
+      "params": [],
       "return_type": "object",
       "methods": [
-        {"name": "increment", "params": [], "return_type": "number"},
-        {"name": "decrement", "params": [], "return_type": "number"},
-        {"name": "reset", "params": [], "return_type": "void"}
+        {"name": "push", "params": [{"name": "item", "type": "any"}], "return_type": "void"},
+        {"name": "pop", "params": [], "return_type": "any"}
       ],
       "allowed_imports": []
     },
     "contract": {
-      "preconditions": ["initialValue 必须是整数"],
-      "postconditions": ["increment 返回当前值+1", "decrement 返回当前值-1", "reset 将值恢复为 initialValue"],
-      "invariants": ["计数值始终为整数"]
+      "preconditions": [],
+      "postconditions": ["push 将元素加入栈顶", "pop 移除并返回栈顶元素，空栈返回 undefined"],
+      "invariants": ["内部数组保持 LIFO 顺序"]
     },
-    "test_skeleton": "test('counter', () => { const c = createCounter(0); expect(c.increment()).toBe(1); expect(c.decrement()).toBe(0); c.reset(); expect(c.increment()).toBe(1); });",
+    "test_skeleton": "test('push and pop', () => { const s = createStackStore(); s.push(1); s.push(2); expect(s.pop()).toBe(2); expect(s.pop()).toBe(1); expect(s.pop()).toBeUndefined(); });",
     "max_iterations": 10,
     "dependencies": []
+  },
+  {
+    "node_id": "stack_helpers",
+    "name": "栈辅助方法",
+    "signature": {
+      "language": "typescript",
+      "function_name": "addStackHelpers",
+      "params": [{"name": "store", "type": "object"}],
+      "return_type": "object",
+      "methods": [
+        {"name": "peek", "params": [], "return_type": "any"},
+        {"name": "size", "params": [], "return_type": "number"}
+      ],
+      "allowed_imports": []
+    },
+    "contract": {
+      "preconditions": ["store 必须包含 push 和 pop 方法"],
+      "postconditions": ["peek 返回栈顶元素但不移除", "size 返回栈中元素数量"],
+      "invariants": ["peek 和 size 不修改栈内容"]
+    },
+    "test_skeleton": "test('peek and size', () => { const store = createStackStore(); const s = addStackHelpers(store); s.push('a'); expect(s.size()).toBe(1); expect(s.peek()).toBe('a'); expect(s.size()).toBe(1); });",
+    "max_iterations": 10,
+    "dependencies": ["stack_store"]
   }
 ]}"""
 
@@ -106,7 +133,16 @@ def _parse_dag(raw: str) -> DAG:
     m = re.search(r'\{[\s\S]*\}', json_str)
     if m:
         json_str = m.group(0)
-    data = json.loads(json_str)
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        # 截取错误位置前后的内容帮助调试
+        pos = e.pos
+        snippet = json_str[max(0, pos - 100):pos + 100]
+        raise CompilationError(
+            f"JSON 解析失败: {e.msg} (第{e.lineno}行, 第{e.colno}列)\n"
+            f"错误位置附近: ...{snippet}..."
+        )
 
     from models import MethodSignature
 

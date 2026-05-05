@@ -20,13 +20,24 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedba
     for iteration in range(1, node.max_iterations + 1):
         result.iteration_count = iteration
 
-        code = _generate_code(node, completed_context, previous=result, review_feedback=review_feedback)
+        code = _generate_and_extract(node, completed_context, previous=result, review_feedback=review_feedback, verbose=verbose)
         if not code.strip():
             result.status = NodeStatus.FAILED
-            result.test_output = "弱模型未生成有效代码"
+            result.test_output = "弱模型未生成有效代码（多次尝试后仍无法提取）"
             if verbose:
-                print(f"    第{iteration}轮: 模型未返回代码，节点失败")
+                print(f"    第{iteration}轮: 模型未返回有效代码，节点失败")
             return result
+
+        # 自检：让弱模型快速审查自己的代码
+        if verbose:
+            print(f"    [弱模型] 自检代码...")
+        if not _quick_self_check(code, node.signature.language, verbose=verbose):
+            # 自检不通过，让弱模型修复后重新生成
+            result.test_output = "弱模型自检不通过"
+            if verbose:
+                print(f"    第{iteration}轮: 自检未通过，重新生成...")
+            review_feedback = f"你的代码自检未通过。请检查函数签名是否正确、是否有明显语法错误、是否实现了所有要求的方法。"
+            continue
 
         result.generated_code = code
         sb_result = sandbox.execute(
@@ -60,80 +71,137 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedba
     return result
 
 
-def _generate_code(node: DAGNode, context: dict[str, str], previous: NodeResult, review_feedback: str = "") -> str:
-    sig = node.signature
-    prompt = f"""实现以下 TypeScript 函数，使其通过所有测试。
+def _generate_and_extract(node: DAGNode, context: dict[str, str], previous: NodeResult, review_feedback: str = "", verbose: bool = False) -> str:
+    """生成代码并提取。如果提取结果不像代码，让弱模型重新输出（最多2次）。"""
+    lang = node.signature.language
+    code_fence = "python" if lang == "python" else "typescript"
 
-签名: function {sig.function_name}({_fmt_params(sig.params)}): {sig.return_type}
-{f"方法: {chr(10).join(f'{m.name}({_fmt_params(m.params)}): {m.return_type}' for m in sig.methods)}" if sig.methods else ""}
-合约:
+    for retry in range(3):
+        resp = _call_weak_model(node, context, previous, review_feedback)
+        code = _extract_code(resp.content)
+
+        if _looks_like_code(code, lang):
+            return code
+
+        if verbose and retry > 0:
+            print(f"    [弱模型] 第{retry}次提取失败，重新请求...")
+        if retry < 2:
+            # 告诉弱模型它的输出格式有问题，让它重新输出
+            review_feedback = (
+                f"你上一次的回复格式不正确——包含了太多解释文字，或者代码没有正确包裹在 "
+                f"```{code_fence} 代码块中。\n"
+                f"请重新输出：只输出一个 ```{code_fence} 代码块，里面放完整代码。"
+            )
+            previous = NodeResult(node_id=node.node_id)  # 清除上次的错误记忆
+
+    return ""
+
+
+def _call_weak_model(node: DAGNode, context: dict[str, str], previous: NodeResult, review_feedback: str = "") -> llm.LLMResponse:
+    """构造 prompt 并调用弱模型。"""
+    sig = node.signature
+    lang = sig.language
+    comment = "#" if lang == "python" else "//"
+    func_kw = "def" if lang == "python" else "function"
+    code_fence = "python" if lang == "python" else "typescript"
+
+    prompt = f"""你是一个{lang.upper()}程序员。请实现以下函数并通过所有测试。
+
+函数签名: {func_kw} {sig.function_name}({_fmt_params(sig.params)}){': ' + sig.return_type if lang == 'typescript' else ''}
+{f"需要实现的方法: {chr(10).join(f'  - {m.name}({_fmt_params(m.params)}): {m.return_type}' for m in sig.methods)}" if sig.methods else ""}
+
+行为要求:
   前置条件: {_fmt_list(node.contract.preconditions)}
   后置条件: {_fmt_list(node.contract.postconditions)}
   不变式: {_fmt_list(node.contract.invariants)}"""
 
     if context:
-        prompt += f"\n\n已完成依赖节点的代码:\n"
+        prompt += f"\n\n依赖节点的代码（你可以直接使用）:\n"
         for dep_id, dep_code in context.items():
-            prompt += f"\n// --- {dep_id} ---\n{dep_code}\n"
+            prompt += f"\n{comment} --- {dep_id} ---\n{dep_code}\n"
 
     if review_feedback:
-        prompt += f"""
-
-审核反馈（请根据此反馈修改你的实现）:
-{review_feedback}"""
+        prompt += f"\n\n注意: {review_feedback}"
 
     prompt += f"""
 
-测试（你的代码必须通过）:
-```typescript
+你必须通过的测试:
+```{code_fence}
 {node.test_skeleton}
 ```
 
-只输出 TypeScript 代码。不要输出解释或 markdown 标记。"""
+请把你的{lang.upper()}代码放在一个 ```{code_fence} 代码块中输出。代码块之外不要写任何文字。"""
 
     if previous.generated_code and previous.test_output:
-        # 截断错误输出，防止 prompt 爆炸
         err_short = previous.test_output
         if len(err_short) > 2000:
-            err_short = err_short[:1000] + "\n...(中间省略)...\n" + err_short[-1000:]
+            err_short = err_short[:1000] + "\n...(省略)...\n" + err_short[-1000:]
         code_short = previous.generated_code
         if len(code_short) > 3000:
-            code_short = code_short[:1500] + "\n// ...(省略)...\n" + code_short[-1500:]
+            code_short = code_short[:1500] + f"\n{comment} ...(省略)...\n" + code_short[-1500:]
+
         prompt += f"""
 
-上一次生成的代码（已截断）:
-```typescript
+你上一次的代码:
+```{code_fence}
 {code_short}
 ```
 
-上一次测试失败（已截断）:
+测试报错:
 {err_short}
 
-请修复以上错误。"""
+请修复以上错误并重新输出。"""
 
-    resp = llm.call_weak(prompt)
-    return _extract_code(resp.content)
+    return llm.call_weak(prompt)
+
+
+def _quick_self_check(code: str, lang: str, verbose: bool = False) -> bool:
+    """让弱模型快速自检代码是否合理。返回 True 表示通过。"""
+    prompt = f"""快速检查以下 {lang} 代码是否有明显问题（语法错误、缺少函数体、类型不匹配等）。
+只回答 PASS 或 FAIL。FAIL 时附一句简短说明。
+
+```{lang}
+{code}
+```"""
+
+    try:
+        resp = llm.call_weak(prompt, max_tokens=100, temperature=0)
+        content = resp.content.strip().upper()
+        return "PASS" in content
+    except Exception:
+        return True  # 自检失败时宽容处理，交给沙箱判断
 
 
 def _extract_code(raw: str) -> str:
     """从弱模型响应中提取纯代码（去掉 think 块、markdown 标记等）。"""
     import re as _re
     text = raw.strip()
-    # 去掉模型的思考过程
     text = _re.sub(r'<think>[\s\S]*?</think>', '', text)
+
     for fence in ["```typescript", "```ts", "```python", "```"]:
         if fence in text:
             parts = text.split(fence, 1)
             if len(parts) > 1:
                 inner = parts[1].split("```", 1)[0] if "```" in parts[1] else parts[1]
                 return inner.strip()
-    # 去掉常见的前缀废话
-    for prefix in ["好的，", "以下是", "这是", "Here is", "Here's"]:
-        if text.startswith(prefix):
+
+    # 没有围栏标记，尝试去掉常见废话前缀
+    for prefix in ["好的，", "以下是", "这是", "Here is", "Here's", "The user", "Let me", "I need", "I'll", "First", "We need"]:
+        if text.lower().startswith(prefix.lower()):
             lines = text.split("\n", 1)
             if len(lines) > 1:
                 return lines[1].strip()
     return text
+
+
+def _looks_like_code(text: str, lang: str = "typescript") -> bool:
+    """判断提取的文本是否像代码。"""
+    if not text or len(text) < 10:
+        return False
+    indicators = ["function ", "class ", "def ", "export ", "const ", "let ", "var ", "import ", "return", "if ", "for ", "while ", "async "]
+    if lang == "python":
+        indicators = ["def ", "class ", "import ", "return", "if ", "for ", "while ", "async def"]
+    return any(kw in text for kw in indicators)
 
 
 def _fmt_params(params: list) -> str:
