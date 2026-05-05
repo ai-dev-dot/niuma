@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0 (2026-05-05)
+
+### Core Engine
+
+- **Verbose mode:** `python main.py --verbose` shows each pipeline step in detail —
+  compiler DAG structure, worker iterations with pass/fail, reviewer verdict
+- **Robust worker:** weak model self-checks code before sandbox, regenerates on bad
+  extraction, language-aware prompt (TypeScript / Python)
+- **Compiler improvements:** few-shot example prompt for reliable JSON output,
+  multi-layer response parsing (think blocks, markdown fences, type coercion)
+
+### User Experience
+
+- **Git management in TUI:** view commit history and push task branches from project menu
+- **Pipeline logs:** `.niuma/logs/<date>_<task>.jsonl` records every API call
+  (model, tokens, duration, preview) for audit and debugging
+- **DeepSeek presets:** deepseek-v4-pro as primary strong model
+
 ## 0.1.0 (2026-05-05)
 
 Initial prototype release.
