@@ -22,6 +22,84 @@ DEFAULT_CONFIG = {
     },
 }
 
+# 供应商预设 —— 用户只需选供应商+填API Key，base_url和模型列表自动补全
+# 数据来源: https://models.dev (每日自动更新)
+PROVIDERS = {
+    "openai": {
+        "name": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "key_hint": "https://platform.openai.com/api-keys",
+        "strong_models": ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "o4-mini"],
+        "weak_models": ["gpt-5.4-mini", "gpt-5.4-nano", "gpt-4.1-mini"],
+    },
+    "deepseek": {
+        "name": "DeepSeek",
+        "base_url": "https://api.deepseek.com/v1",
+        "key_hint": "https://platform.deepseek.com/api_keys",
+        "strong_models": ["deepseek-chat", "deepseek-reasoner", "deepseek-v4-flash"],
+        "weak_models": ["deepseek-chat", "deepseek-v4-flash"],
+    },
+    "groq": {
+        "name": "Groq",
+        "base_url": "https://api.groq.com/openai/v1",
+        "key_hint": "https://console.groq.com/keys",
+        "strong_models": ["llama-3.3-70b-versatile", "deepseek-r1-distill-llama-70b"],
+        "weak_models": ["llama-3.1-8b-instant", "qwen-qwq-32b", "llama-3.2-3b-preview"],
+    },
+    "openrouter": {
+        "name": "OpenRouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "key_hint": "https://openrouter.ai/keys",
+        "strong_models": [
+            "anthropic/claude-sonnet-4.6",
+            "openai/gpt-5.4-mini",
+            "google/gemini-2.5-pro",
+            "deepseek/deepseek-chat",
+        ],
+        "weak_models": [
+            "google/gemini-2.5-flash-lite",
+            "deepseek/deepseek-chat",
+            "qwen/qwen3.5-flash",
+        ],
+    },
+    "siliconflow": {
+        "name": "硅基流动 (SiliconFlow)",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "key_hint": "https://cloud.siliconflow.cn/account/ak",
+        "strong_models": [
+            "deepseek-ai/DeepSeek-R1",
+            "Pro/deepseek-ai/DeepSeek-V3.2",
+            "Qwen/Qwen3-235B-A22B-Thinking-2507",
+        ],
+        "weak_models": [
+            "Qwen/Qwen3-8B",
+            "deepseek-ai/DeepSeek-V3",
+            "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        ],
+    },
+    "zhipu": {
+        "name": "智谱AI (ZhipuAI)",
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "key_hint": "https://open.bigmodel.cn/usercenter/apikeys",
+        "strong_models": ["glm-5.1", "glm-4.7", "glm-4.6"],
+        "weak_models": ["glm-4.7-flash", "glm-4.7-flashx", "glm-4.5-flash"],
+    },
+    "dashscope": {
+        "name": "阿里百炼 (DashScope)",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "key_hint": "https://bailian.console.aliyun.com/",
+        "strong_models": ["qwen-max", "qwen-plus", "qwen3-235b-a22b"],
+        "weak_models": ["qwen-turbo", "qwen-plus", "qwen3-8b"],
+    },
+    "kimi": {
+        "name": "月之暗面 (Moonshot/Kimi)",
+        "base_url": "https://api.moonshot.cn/v1",
+        "key_hint": "https://platform.moonshot.cn/console/api-keys",
+        "strong_models": ["moonshot-v1-128k", "kimi-k2-thinking"],
+        "weak_models": ["moonshot-v1-8k", "moonshot-v1-32k"],
+    },
+}
+
 
 def _ensure_dir() -> None:
     _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -84,6 +162,24 @@ def config_exists() -> bool:
 
 def get_config_path() -> str:
     return str(_CONFIG_FILE)
+
+
+def list_providers() -> list[dict]:
+    """返回供应商列表，每个包含 key, name, base_url, key_hint。"""
+    return [
+        {
+            "key": key,
+            "name": p["name"],
+            "base_url": p["base_url"],
+            "key_hint": p["key_hint"],
+        }
+        for key, p in PROVIDERS.items()
+    ]
+
+
+def get_provider(key: str) -> dict | None:
+    """获取单个供应商完整信息。"""
+    return PROVIDERS.get(key)
 
 
 def test_connection(which: str) -> tuple[bool, str]:

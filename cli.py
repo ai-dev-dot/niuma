@@ -73,6 +73,7 @@ def _main_menu() -> None:
 def _config_menu(which: str) -> None:
     label = "强模型 (编译器/审核器)" if which == "strong" else "弱模型 (代码生成器)"
     eng = "Strong Model (Compiler/Reviewer)" if which == "strong" else "Weak Model (Code Generator)"
+    model_field = "strong_models" if which == "strong" else "weak_models"
 
     while True:
         c = config.get_model_config(which)
@@ -82,24 +83,21 @@ def _config_menu(which: str) -> None:
         print(f"  Base URL: {c['base_url']}")
         print(f"  模型名称: {c['model'] or '(未设置 | not set)'}")
         print()
-        print("  1. 修改 API Key")
-        print("  2. 修改 Base URL")
+        print("  1. 快速配置（选供应商，仅需填 API Key）| Quick Setup (pick provider)")
+        print("  2. 修改 API Key")
         print("  3. 修改模型名称")
+        print("  4. 修改 Base URL（高级）")
         print("  5. 测试连接 | Test Connection")
-        print("  4. 返回 | Back")
+        print("  6. 返回 | Back")
         print()
 
-        choice = _ask("请选择 | Select [1-5]", "4")
+        choice = _ask("请选择 | Select [1-6]", "6")
         if choice == "1":
+            _provider_setup(which, model_field)
+        elif choice == "2":
             new_key = _ask_text("API Key")
             if new_key:
                 config.set_model_config(which, api_key=new_key)
-                print("  [OK] 已更新 | Updated.")
-                _wait()
-        elif choice == "2":
-            new_url = _ask_text("Base URL", c["base_url"])
-            if new_url:
-                config.set_model_config(which, base_url=new_url)
                 print("  [OK] 已更新 | Updated.")
                 _wait()
         elif choice == "3":
@@ -108,14 +106,141 @@ def _config_menu(which: str) -> None:
                 config.set_model_config(which, model=new_model)
                 print("  [OK] 已更新 | Updated.")
                 _wait()
+        elif choice == "4":
+            new_url = _ask_text("Base URL", c["base_url"])
+            if new_url:
+                config.set_model_config(which, base_url=new_url)
+                print("  [OK] 已更新 | Updated.")
+                _wait()
         elif choice == "5":
             print()
             print(f"  测试连接中 | Testing connection...")
             ok, msg = config.test_connection(which)
             print(f"  {'[OK]' if ok else '[!!]'} {msg}")
             _wait()
-        elif choice == "4":
+        elif choice == "6":
             return
+
+
+def _provider_setup(which: str, model_field: str) -> None:
+    """快速配置：选供应商 → 填API Key → 选模型。三步搞定。"""
+    providers = config.list_providers()
+    # 计算页数
+    per_page = 9
+    page = 0
+    total_pages = (len(providers) + per_page - 1) // per_page
+
+    while True:
+        _clear()
+        _title("选择供应商 | Select Provider")
+        if total_pages > 1:
+            print(f"  (第 {page + 1}/{total_pages} 页 | Page {page + 1}/{total_pages})")
+        print()
+
+        start = page * per_page
+        end = min(start + per_page, len(providers))
+        for i, p in enumerate(providers[start:end], 1):
+            print(f"  {i}. {p['name']}")
+        print()
+        print(f"  C. 自定义（手动输入全部信息）| Custom (manual input)")
+        if total_pages > 1:
+            print(f"  N. 下一页 | Next Page")
+        print(f"  B. 返回 | Back")
+        print()
+
+        choice = _ask("请选择 | Select", "B").lower()
+        if choice == "b":
+            return
+        elif choice == "c":
+            _manual_setup(which)
+            return
+        elif choice == "n" and total_pages > 1:
+            page = (page + 1) % total_pages
+            continue
+        else:
+            try:
+                idx = int(choice) - 1 + start
+                if 0 <= idx < len(providers):
+                    _provider_detail(which, providers[idx], model_field)
+                    return
+            except ValueError:
+                pass
+
+
+def _provider_detail(which: str, provider: dict, model_field: str) -> None:
+    """填写所选供应商的配置详情。"""
+    full = config.get_provider(provider["key"])
+    if not full:
+        return
+
+    _clear()
+    _title(f"配置 {provider['name']}")
+
+    # Step 1: API Key
+    print(f"  供应商 | Provider: {provider['name']}")
+    print(f"  接口地址 | Base URL: {provider['base_url']}")
+    print(f"  获取 Key | Get Key: {provider['key_hint']}")
+    print()
+    key = _ask_text("API Key")
+    if not key:
+        print("  已取消 | Cancelled.")
+        _wait()
+        return
+
+    # Step 2: 选模型
+    models = full.get(model_field, [])
+    _clear()
+    _title(f"选择模型 | Select Model — {provider['name']}")
+    print(f"  API Key: {_mask(key)}")
+    print()
+    for i, m in enumerate(models, 1):
+        print(f"  {i}. {m}")
+    print(f"  M. 手动输入模型名 | Manual input")
+    print(f"  B. 返回 | Back")
+    print()
+
+    choice = _ask("请选择 | Select", "1").lower()
+    if choice == "b":
+        return
+    elif choice == "m":
+        model = _ask_text("模型名称 | Model Name")
+        if not model:
+            return
+    else:
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(models):
+                model = models[idx]
+            else:
+                return
+        except ValueError:
+            return
+
+    # 保存配置
+    config.set_model_config(which, api_key=key, base_url=provider["base_url"], model=model)
+    print()
+    print(f"  [OK] {provider['name']} — {model}")
+    _wait()
+
+
+def _manual_setup(which: str) -> None:
+    """自定义手动配置（原有流程）。"""
+    _clear()
+    _title("自定义配置 | Custom Setup")
+
+    c = config.get_model_config(which)
+    key = _ask_text("API Key")
+    if key:
+        config.set_model_config(which, api_key=key)
+    url = _ask_text("Base URL", c["base_url"])
+    if url:
+        config.set_model_config(which, base_url=url)
+    model = _ask_text("模型名称 | Model Name")
+    if model:
+        config.set_model_config(which, model=model)
+    print()
+    print("  [OK] 已保存 | Saved.")
+    _wait()
 
 
 # ═══════════════════════════════════════════════════════════════
