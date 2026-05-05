@@ -70,37 +70,22 @@
 ```bash
 git clone https://github.com/ai-dev-dot/niuma.git
 cd niuma
-
-# 安装依赖（一次性）
-pip install -r requirements.txt
-npm install
-
-# 配置
-cp .env.example .env
-# 编辑 .env，填入 API key 和模型名
+./niuma
 ```
 
-### 环境检查
+就这一条命令。首次运行自动安装依赖，然后打开菜单：
 
-```bash
-python main.py --doctor
 ```
-检查 Python、Node.js、npm、jest、pytest、.env 配置、任务文件是否全部就绪。
-
-### 试运行
-
-```bash
-python main.py --dry-run
+  ==================================================
+  牛马 Niuma
+  ==================================================
+  1. 配置强模型 | Configure Strong Model
+  2. 配置弱模型 | Configure Weak Model
+  3. 管理项目 | Manage Projects
+  4. 退出 | Exit
 ```
-用 mock 数据跑完整流程，不消耗任何 token，验证结构正确。
 
-### 运行
-
-```bash
-python main.py tasks/lru-cache.tsk
-# 或者直接输入:
-python main.py --inline "用 TypeScript 实现一个线程安全的 LRU 缓存"
-```
+在菜单里配置模型（API Key、接口地址、模型名），然后创建或打开项目、运行任务。全在一个地方搞定。
 
 ### 测试
 

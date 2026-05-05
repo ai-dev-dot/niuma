@@ -67,37 +67,23 @@ understand the overall task — it only fills in typed blanks.
 ```bash
 git clone https://github.com/ai-dev-dot/niuma.git
 cd niuma
-
-# Install dependencies (one time)
-pip install -r requirements.txt
-npm install
-
-# Configure
-cp .env.example .env
-# Edit .env with your API key and model names
+./niuma
 ```
 
-### Verify
+That's it. The first run auto-installs dependencies, then opens the menu:
 
-```bash
-python main.py --doctor
 ```
-This checks Python, Node.js, npm, jest, pytest, .env configuration, and available tasks.
-
-### Dry Run
-
-```bash
-python main.py --dry-run
+  ==================================================
+  牛马 Niuma
+  ==================================================
+  1. 配置强模型 | Configure Strong Model
+  2. 配置弱模型 | Configure Weak Model
+  3. 管理项目 | Manage Projects
+  4. 退出 | Exit
 ```
-Runs the full pipeline with mocked API calls — validates structure without spending tokens.
 
-### Run
-
-```bash
-python main.py tasks/lru-cache.tsk
-# or inline:
-python main.py --inline "implement a thread-safe LRU cache in TypeScript"
-```
+From the menu, configure your models (API key, base URL, model name),
+then create or open a project and run tasks. All in one place.
 
 ### Test
 
