@@ -112,24 +112,45 @@ def _cmd_doctor() -> None:
           pytest_ok,
           "" if pytest_ok else "运行: pip install pytest | Run: pip install pytest")
 
-    # .env
-    env_file = _PROJECT_ROOT / ".env"
-    if env_file.exists():
-        has_key = "LLM_API_KEY" in env_file.read_text(encoding="utf-8")
-        has_strong = "STRONG_MODEL" in env_file.read_text(encoding="utf-8")
-        has_weak = "WEAK_MODEL" in env_file.read_text(encoding="utf-8")
-        check(".env", True, "已找到 | found")
-        api_key = os.getenv("LLM_API_KEY", "")
-        if api_key and "your-api-key" not in api_key and "sk-your" not in api_key:
-            check("  LLM_API_KEY", True, "已设置 | set")
+    # config.json (TUI 配置) 或 .env (手动配置)
+    import config as _cfg
+    cfg_ok = _cfg.config_exists()
+    strong_cfg = _cfg.get_model_config("strong")
+    weak_cfg = _cfg.get_model_config("weak")
+    cfg_label = f"~/.niuma/config.json" if cfg_ok else "未找到 | not found"
+
+    if cfg_ok:
+        check(cfg_label, True, f"强模型={strong_cfg['model'] or '(待设)'} 弱模型={weak_cfg['model'] or '(待设)'}")
+        strong_key_ok = bool(strong_cfg["api_key"]) and "your-api-key" not in strong_cfg["api_key"] and "sk-your" not in strong_cfg["api_key"]
+        weak_key_ok = bool(weak_cfg["api_key"]) and "your-api-key" not in weak_cfg["api_key"] and "sk-your" not in weak_cfg["api_key"]
+        if strong_key_ok and weak_key_ok:
+            check("  API Keys", True, "强/弱模型均已设置 | both configured")
         else:
-            check("  LLM_API_KEY", False,
-                  "未设置或使用示例值 | not set or using placeholder value")
+            missing = []
+            if not strong_key_ok:
+                missing.append("强模型 API Key")
+            if not weak_key_ok:
+                missing.append("弱模型 API Key")
+            check("  API Keys", False, "未设置: " + ", ".join(missing) + " | run ./niuma → 配置模型")
             all_ok = False
     else:
-        check(".env", False,
-              "未找到 | not found — 复制 .env.example 为 .env | copy .env.example to .env")
-        all_ok = False
+        check(cfg_label, False, "运行 ./niuma → 配置强/弱模型 | Run ./niuma → Configure models")
+        # Fallback: 检查 .env
+        env_file = _PROJECT_ROOT / ".env"
+        if env_file.exists():
+            has_key = "LLM_API_KEY" in env_file.read_text(encoding="utf-8")
+            check(".env (fallback)", True, "已找到 | found")
+            api_key = os.getenv("LLM_API_KEY", "")
+            if api_key and "your-api-key" not in api_key and "sk-your" not in api_key:
+                check("  LLM_API_KEY", True, "已设置 | set")
+            else:
+                check("  LLM_API_KEY", False,
+                      "未设置或使用示例值 | not set or using placeholder value")
+                all_ok = False
+        else:
+            check(".env (fallback)", False,
+                  "运行 ./niuma 配置模型 | Run ./niuma to configure models")
+            all_ok = False
 
     # tasks/
     tasks_dir = _PROJECT_ROOT / "tasks"
@@ -141,7 +162,8 @@ def _cmd_doctor() -> None:
 
     print()
     if all_ok:
-        print("[OK] 一切就绪 | All checks passed. 运行 | Run: python main.py tasks/<task>.tsk")
+        print("[OK] 一切就绪 | All checks passed.")
+        print("    运行 | Run: ./niuma → 管理项目 → 运行任务")
     else:
         print("[!!] 部分检查未通过，请修复后重试 | Some checks failed. Fix and re-run --doctor.")
         sys.exit(1)
@@ -201,7 +223,7 @@ def _cmd_dry_run() -> None:
                 mock_rev.assert_called()
 
     print("\n[OK] 试运行通过 | Dry run passed — 流程结构正确 | pipeline structure valid.")
-    print("   配置 .env 后运行真实任务 | Configure .env and run: python main.py tasks/<task>.tsk")
+    print("   运行 ./niuma 配置模型后即可执行真实任务 | Run ./niuma to configure models, then real tasks")
 
 
 def _make_mock_node() -> "DAGNode":
@@ -256,6 +278,12 @@ def run_task(task_description: str, project_path: str = "") -> bool:
     except compiler.CompilationError as e:
         print(f"[{task_id}] X 编译失败 | Compilation failed: {e}")
         _pm.switch_branch(base, "main")
+        _pm.git_run(base, ["branch", "-D", branch], check=False)
+        return False
+    except RuntimeError as e:
+        print(f"[{task_id}] X 编译失败 | Compilation failed: {e}")
+        _pm.switch_branch(base, "main")
+        _pm.git_run(base, ["branch", "-D", branch], check=False)
         return False
     print(f"[{task_id}] [OK] DAG: {len(dag.nodes)} 节点 | nodes ({time.time() - t0:.1f}s)")
 

@@ -86,6 +86,49 @@ def get_config_path() -> str:
     return str(_CONFIG_FILE)
 
 
+def test_connection(which: str) -> tuple[bool, str]:
+    """测试模型 API 连接。返回 (ok, message)。which = 'strong' | 'weak'"""
+    import json as _json
+    import urllib.request as _req
+    import urllib.error as _err
+
+    c = get_model_config(which)
+    if not c["api_key"]:
+        return False, "未配置 API Key | API Key not set"
+    if not c["model"]:
+        return False, "未配置模型名称 | Model name not set"
+
+    url = f"{c['base_url'].rstrip('/')}/chat/completions"
+    body = _json.dumps({
+        "model": c["model"],
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 5,
+    }).encode("utf-8")
+
+    try:
+        req = _req.Request(
+            url, data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {c['api_key']}",
+            },
+        )
+        with _req.urlopen(req, timeout=15) as resp:
+            data = _json.loads(resp.read().decode("utf-8"))
+        choice = data.get("choices", [{}])[0]
+        content = choice.get("message", {}).get("content", "")
+        return True, f"✓ {c['model']} — {content[:40]}"
+    except _err.HTTPError as e:
+        body_text = ""
+        try:
+            body_text = e.read().decode("utf-8", errors="replace")[:200]
+        except Exception:
+            pass
+        return False, f"HTTP {e.code}: {body_text}"
+    except Exception as e:
+        return False, f"连接失败 | Connection failed: {e}"
+
+
 # ---- 旧 .env 自动迁移 ----
 
 def _migrate_from_env() -> bool:

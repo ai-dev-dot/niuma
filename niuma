@@ -3,9 +3,13 @@
 set -e
 cd "$(dirname "$0")"
 
-# 首次运行自动装依赖
-if [ ! -d "node_modules" ]; then
-    echo "  首次运行，安装依赖... | First run, installing dependencies..."
+# 首次运行自动装依赖（Python + Node.js 双方面检查）
+_need_install=0
+python -m pytest --version >/dev/null 2>&1 || _need_install=1
+[ -d "node_modules" ] || _need_install=1
+
+if [ "$_need_install" -eq 1 ]; then
+    echo "  安装依赖... | Installing dependencies..."
     pip install -r requirements.txt -q 2>/dev/null || true
     npm install --silent 2>/dev/null || true
     echo "  [OK] 就绪 | Ready."

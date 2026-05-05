@@ -99,7 +99,7 @@ def call(
             if e.code in (401, 403):
                 raise RuntimeError(
                     f"API 认证失败 ({e.code}) | Authentication failed.\n"
-                    f"请检查 .env 中的 LLM_API_KEY | Check LLM_API_KEY in .env\n"
+                    f"请检查模型配置 | Check model config: ./niuma → 配置模型\n"
                     f"{body_text}"
                 ) from e
         except (urllib.error.URLError, OSError) as e:

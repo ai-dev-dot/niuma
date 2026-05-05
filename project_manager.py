@@ -112,6 +112,14 @@ def get_project_path(name: str) -> Path | None:
     return p if p.exists() else None
 
 
+def delete_project(name: str) -> None:
+    """删除项目：从 DB 中移除记录。不删除本地文件（安全考虑）。"""
+    db = _get_db()
+    db.execute("DELETE FROM projects WHERE name = ?", (name,))
+    db.commit()
+    db.close()
+
+
 # ═══════════════════════════════════════════════════════════════
 # Git 操作 —— 强/弱模型通过 git 分支通信
 # ═══════════════════════════════════════════════════════════════

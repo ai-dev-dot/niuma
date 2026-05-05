@@ -85,10 +85,11 @@ def _config_menu(which: str) -> None:
         print("  1. 修改 API Key")
         print("  2. 修改 Base URL")
         print("  3. 修改模型名称")
+        print("  5. 测试连接 | Test Connection")
         print("  4. 返回 | Back")
         print()
 
-        choice = _ask("请选择 | Select [1-4]", "4")
+        choice = _ask("请选择 | Select [1-5]", "4")
         if choice == "1":
             new_key = _ask_text("API Key")
             if new_key:
@@ -107,6 +108,12 @@ def _config_menu(which: str) -> None:
                 config.set_model_config(which, model=new_model)
                 print("  [OK] 已更新 | Updated.")
                 _wait()
+        elif choice == "5":
+            print()
+            print(f"  测试连接中 | Testing connection...")
+            ok, msg = config.test_connection(which)
+            print(f"  {'[OK]' if ok else '[!!]'} {msg}")
+            _wait()
         elif choice == "4":
             return
 
@@ -195,14 +202,27 @@ def _project_menu(project: dict) -> None:
 
         print("  1. 运行任务 | Run Task")
         print("  2. 新建任务文件 | New Task File")
+        print("  D. 删除项目 | Delete Project")
         print("  3. 返回 | Back")
         print()
 
-        choice = _ask("请选择 | Select [1-3]", "3")
+        choice = _ask("请选择 | Select [1-3]", "3").lower()
         if choice == "1":
             _run_task_in_project(project)
         elif choice == "2":
             _create_task_file(project)
+        elif choice == "d":
+            confirm = _ask(f"  确认删除 '{project['name']}'? (输入项目名确认 | type name to confirm)")
+            if confirm == project["name"]:
+                project_manager.delete_project(project["name"])
+                print(f"\n  [OK] 项目 '{project['name']}' 已从列表中移除 | removed from list")
+                print(f"  本地文件保留在: {project['local_path']}")
+                print(f"  (如需删除本地文件请手动操作 | Manually delete local files if needed)")
+                _wait()
+                return
+            else:
+                print("  已取消 | Cancelled.")
+                _wait()
         elif choice == "3":
             return
 
@@ -247,13 +267,26 @@ def _run_task_in_project(project: dict) -> None:
             # 调用管道
             import main as _main
             import project_manager as _pm
-            os.chdir(str(proj_path))
-            success = _main.run_task(task_desc, str(proj_path))
+            orig_dir = os.getcwd()
+            try:
+                os.chdir(str(proj_path))
+                success = _main.run_task(task_desc, str(proj_path))
+            except RuntimeError as e:
+                os.chdir(orig_dir)
+                print(f"  [!!] {e}")
+                _wait()
+                return
+            except Exception as e:
+                os.chdir(orig_dir)
+                print(f"  [!!] 运行任务时出错 | Error running task: {e}")
+                print(f"  请检查模型配置 | Check model configuration: ./niuma → 配置模型")
+                _wait()
+                return
 
             # 显示 git 分支状态
             current_branch = _pm.get_current_branch(proj_path)
             branches = _pm.list_task_branches(proj_path)
-            os.chdir(str(Path(__file__).resolve().parent))
+            os.chdir(orig_dir)
             print()
             if success:
                 print(f"  [OK] 分支 {current_branch} 就绪，人类审阅后 merge | Branch ready for human review")

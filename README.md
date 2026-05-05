@@ -85,6 +85,13 @@ That's it. The first run auto-installs dependencies, then opens the menu:
 From the menu, configure your models (API key, base URL, model name),
 then create or open a project and run tasks. All in one place.
 
+### Verify
+
+```bash
+python main.py --doctor     # Check prerequisites (Python, Node.js, model config)
+python main.py --dry-run    # Dry-run with mocked APIs to verify pipeline structure
+```
+
 ### Test
 
 ```bash
@@ -111,7 +118,7 @@ niuma/
   niuma                 # One-command launcher (bash)
   niuma.bat             # One-command launcher (Windows)
   tasks/                # Example task descriptions (.tsk files)
-  system_tests/         # pytest suite (42 tests)
+  system_tests/         # pytest suite (29 tests)
   docs/                 # Design docs and test plans
 ```
 
@@ -124,7 +131,7 @@ don't need to change.
 
 ## Status
 
-Prototype — 42 system tests passing. The compiler → worker → reviewer loop is functional with
+Prototype — 29 system tests passing. The compiler → worker → reviewer loop is functional with
 mocked API calls. To run end-to-end with real LLMs, configure your `.env` file.
 
 ## License

@@ -87,6 +87,13 @@ cd niuma
 
 在菜单里配置模型（API Key、接口地址、模型名），然后创建或打开项目、运行任务。全在一个地方搞定。
 
+### 环境检查
+
+```bash
+python main.py --doctor     # 检查前置条件（Python、Node.js、模型配置）
+python main.py --dry-run    # 用 mock API 试跑流程，验证 pipeline 结构
+```
+
 ### 测试
 
 ```bash
@@ -113,7 +120,7 @@ niuma/
   niuma                 # 一键启动脚本（bash）
   niuma.bat             # 一键启动脚本（Windows）
   tasks/                # 示例任务描述文件（.tsk）
-  system_tests/         # pytest 测试套件（42 个测试）
+  system_tests/         # pytest 测试套件（29 个测试）
   docs/                 # 设计文档 + 测试计划
 ```
 
@@ -124,7 +131,7 @@ DAG 节点的 `signature.language` 字段决定用哪个运行时。加新语言
 
 ## 当前状态
 
-原型阶段——42 个系统测试全部通过。compiler → worker → reviewer 闭环在用 mock API 的情况下跑通。
+原型阶段——29 个系统测试全部通过。compiler → worker → reviewer 闭环在用 mock API 的情况下跑通。
 要用真实 LLM 端到端运行，配置 `.env` 文件即可。
 
 ## 设计决策记录
