@@ -1,5 +1,7 @@
 """审核器 —— 强模型审查所有节点产物，判断 pass/fail 并给出修改建议。"""
 
+from pathlib import Path
+
 import llm
 from models import DAG, NodeResult, ReviewResult
 
@@ -60,3 +62,25 @@ def _parse_review(raw: str, node_results: list[NodeResult]) -> ReviewResult:
         failed_nodes=list(set(failed_nodes)) if failed_nodes else [],
         suggestions=text if not is_pass else "",
     )
+
+
+def commit_review(result: ReviewResult, repo_path: str, task_id: str) -> str:
+    """将审核结论写入 .niuma/review.md 并 git commit。返回文件路径。"""
+    import project_manager as _pm
+
+    status = "PASS" if result.passed else "FAIL"
+    content = f"# Review: {task_id}\n\n**Verdict:** {status}\n\n"
+    if not result.passed:
+        content += f"## Failed Nodes\n\n"
+        for nid in result.failed_nodes:
+            content += f"- {nid}\n"
+        content += f"\n## Suggestions\n\n{result.suggestions}\n"
+
+    _pm.commit_file(
+        repo_path,
+        ".niuma/review.md",
+        content,
+        _pm.GIT_AUTHOR_REVIEWER,
+        f"reviewer: {status} for task {task_id}",
+    )
+    return str(Path(repo_path) / ".niuma" / "review.md")

@@ -109,3 +109,20 @@ def _fmt_list(items: list[str]) -> str:
     if not items:
         return "(无)"
     return "; ".join(items)
+
+
+def commit_node(node: DAGNode, result: NodeResult, repo_path: str) -> str:
+    """将通过测试的节点代码 git commit 到仓库。返回文件路径。"""
+    import project_manager as _pm
+
+    ext = "ts" if node.signature.language == "typescript" else "py"
+    filepath = f"src/{node.node_id}.{ext}"
+
+    _pm.commit_file(
+        repo_path,
+        filepath,
+        result.generated_code,
+        _pm.GIT_AUTHOR_WORKER,
+        f"worker: implement {node.node_id} ({result.iteration_count} iterations)",
+    )
+    return filepath

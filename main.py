@@ -4,7 +4,6 @@ Orchestrates the compiler → worker → reviewer pipeline."""
 
 import argparse
 import os
-import sqlite3
 import subprocess
 import sys
 import time
@@ -26,8 +25,6 @@ from models import (
     NodeResult,
     NodeStatus,
     ReviewResult,
-    TaskRecord,
-    TaskStatus,
 )
 
 _PROJECT_ROOT = Path(__file__).resolve().parent
@@ -232,42 +229,41 @@ def _make_mock_node() -> "DAGNode":
 # ═══════════════════════════════════════════════════════════════
 
 def run_task(task_description: str, project_path: str = "") -> bool:
-    """运行一次完整 pipeline：编译 → 执行 → 审核。
-    Run full pipeline: compile → execute → review.
-    返回 True 表示任务成功完成。Returns True if task completed successfully."""
+    """运行一次完整 pipeline：创建 git 分支 → 编译 → 执行 → 审核。
+    Each handoff is recorded as a git commit on a task branch.
+    返回 True 表示任务成功完成。"""
+    import project_manager as _pm
+
     base = Path(project_path) if project_path else _PROJECT_ROOT
     task_id = str(uuid.uuid4())[:8]
     t_total = time.time()
 
-    db = _init_db(base)
-    _ensure_schema(db)
-
     print(f"[{task_id}] 任务 | Task: {task_description[:80]}{'...' if len(task_description) > 80 else ''}")
 
-    # —— 编译 | Compile ——
-    record = TaskRecord(id=task_id, task_description=task_description)
-    record.status = TaskStatus.COMPILING
-    _upsert_task(db, record)
+    # —— 创建任务分支 ——
+    try:
+        branch = _pm.create_task_branch(base, task_id)
+        print(f"[{task_id}] 分支 | Branch: {branch}")
+    except RuntimeError as e:
+        print(f"[{task_id}] X 创建分支失败 | Branch creation failed: {e}")
+        return False
 
+    # —— 编译 | Compile ——
     t0 = time.time()
     print(f"[{task_id}] 编译 | Compiling...")
     try:
         dag = compiler.compile_task(task_description)
     except compiler.CompilationError as e:
         print(f"[{task_id}] X 编译失败 | Compilation failed: {e}")
-        record.status = TaskStatus.FAILED
-        _upsert_task(db, record)
-        db.close()
+        _pm.switch_branch(base, "main")
         return False
     print(f"[{task_id}] [OK] DAG: {len(dag.nodes)} 节点 | nodes ({time.time() - t0:.1f}s)")
 
-    record.dag_json = _dag_to_json(dag)
-    _upsert_task(db, record)
+    # 强模型提交 DAG 到 git
+    compiler.commit_dag(dag, str(base), task_id)
+    print(f"[{task_id}]   → git commit: .niuma/dag.json (Strong Model)")
 
     # —— 执行 | Execute ——
-    record.status = TaskStatus.EXECUTING
-    _upsert_task(db, record)
-
     node_results: list[NodeResult] = []
     completed_context: dict[str, str] = {}
 
@@ -276,33 +272,37 @@ def run_task(task_description: str, project_path: str = "") -> bool:
         print(f"[{task_id}] [{i}/{len(dag.nodes)}] {node.node_id} ({node.name[:40]}) ...")
         nr = worker.execute_node(node, completed_context)
         node_results.append(nr)
-        _save_node_result(db, task_id, nr)
 
         if nr.status == NodeStatus.PASSED:
             completed_context[node.node_id] = nr.generated_code
             _save_output(base, task_id, node, nr)
+            # 弱模型提交代码到 git
+            worker.commit_node(node, nr, str(base))
             print(f"  [OK] {node.node_id} 通过 | passed ({nr.iteration_count} 轮 | iter, {time.time() - t_node:.1f}s)")
+            print(f"    → git commit: src/{node.node_id}.ts (Weak Model)")
         else:
             print(f"  X {node.node_id} 失败 | failed ({nr.iteration_count} 轮 | iter)")
 
     passed_count = sum(1 for nr in node_results if nr.status == NodeStatus.PASSED)
 
     # —— 审核 | Review ——
-    record.status = TaskStatus.REVIEWING
-    _upsert_task(db, record)
-
     review_passes = False
     for review_round in range(1, 4):
         print(f"[{task_id}] 审核 | Reviewing (第{review_round}轮 | round {review_round}/3)...")
         t_rev = time.time()
         rv = reviewer.review(task_description, dag, node_results)
 
+        # 强模型提交审核结论到 git
+        reviewer.commit_review(rv, str(base), task_id)
+
         if rv.passed:
             review_passes = True
             print(f"  [OK] PASS ({time.time() - t_rev:.1f}s)")
+            print(f"    → git commit: .niuma/review.md (Strong Model — PASS)")
             break
 
         print(f"  X FAIL: {rv.suggestions[:200]}")
+        print(f"    → git commit: .niuma/review.md (Strong Model — FAIL)")
         for node in dag.topological_order():
             if node.node_id in rv.failed_nodes:
                 print(f"    重做 | retry: {node.node_id}...")
@@ -311,36 +311,37 @@ def run_task(task_description: str, project_path: str = "") -> bool:
                     if old.node_id == node.node_id:
                         node_results[j] = nr
                         break
-                _save_node_result(db, task_id, nr)
                 if nr.status == NodeStatus.PASSED:
                     completed_context[node.node_id] = nr.generated_code
                     _save_output(base, task_id, node, nr)
+                    worker.commit_node(node, nr, str(base))
+                    print(f"      → git commit: src/{node.node_id}.ts (Weak Model)")
 
         passed_count = sum(1 for nr in node_results if nr.status == NodeStatus.PASSED)
 
     total_time = time.time() - t_total
-    if review_passes:
-        record.status = TaskStatus.DONE
-        _upsert_task(db, record)
 
-        entry = MetricsEntry(
-            task_id=task_id,
-            strong_tokens=record.strong_tokens_used,
-            weak_tokens=record.weak_tokens_used,
-            node_iterations={nr.node_id: nr.iteration_count for nr in node_results},
-            passed_count=passed_count,
-            total_count=len(dag.nodes),
-        )
-        metrics.record(entry, output_dir=str(base / "outputs"))
-        metrics.print_summary(entry)
-        print(f"[{task_id}] 产物 | Output: {base / 'outputs' / task_id}/")
+    # —— Metrics + 清理 ——
+    entry = MetricsEntry(
+        task_id=task_id,
+        strong_tokens=0,
+        weak_tokens=0,
+        node_iterations={nr.node_id: nr.iteration_count for nr in node_results},
+        passed_count=passed_count,
+        total_count=len(dag.nodes),
+    )
+    metrics.record(entry, output_dir=str(base / "outputs"))
+    metrics.print_summary(entry)
+
+    if review_passes:
+        print(f"[{task_id}] [OK] 产物 | Output: {base / 'outputs' / task_id}/")
+        print(f"[{task_id}] 分支 {branch} 就绪，审阅后 merge | Branch ready, review then merge")
+        print(f"[{task_id}]   git checkout {branch} && git log --oneline")
         print(f"[{task_id}] 总耗时 | Total: {total_time:.1f}s")
     else:
-        record.status = TaskStatus.FAILED
-        _upsert_task(db, record)
         print(f"[{task_id}] X 审核 3 轮未通过 | Review failed after 3 rounds ({total_time:.1f}s)")
+        print(f"[{task_id}]   分支 {branch} 保留供检查 | Branch kept for inspection")
 
-    db.close()
     return review_passes
 
 
@@ -384,66 +385,6 @@ def _run_cmd(cmd: list[str]) -> str:
         return ""
 
 
-def _init_db(base: Path | None = None) -> sqlite3.Connection:
-    base = base or _PROJECT_ROOT
-    db_path = base / "state.sqlite"
-    db = sqlite3.connect(str(db_path))
-    db.execute("PRAGMA journal_mode=WAL")
-    db.row_factory = sqlite3.Row
-    return db
-
-
-def _ensure_schema(db: sqlite3.Connection) -> None:
-    db.executescript("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id TEXT PRIMARY KEY,
-            task_description TEXT NOT NULL,
-            dag_json TEXT,
-            status TEXT DEFAULT 'pending',
-            strong_tokens_used INTEGER DEFAULT 0,
-            weak_tokens_used INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now')),
-            updated_at TEXT DEFAULT (datetime('now'))
-        );
-        CREATE TABLE IF NOT EXISTS node_results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            task_id TEXT REFERENCES tasks(id),
-            node_id TEXT NOT NULL,
-            iteration_count INTEGER DEFAULT 0,
-            status TEXT DEFAULT 'pending',
-            generated_code TEXT,
-            test_output TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
-    """)
-
-
-def _upsert_task(db: sqlite3.Connection, record: TaskRecord) -> None:
-    db.execute(
-        """INSERT INTO tasks (id, task_description, dag_json, status, strong_tokens_used, weak_tokens_used, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-           ON CONFLICT(id) DO UPDATE SET
-             dag_json=excluded.dag_json,
-             status=excluded.status,
-             strong_tokens_used=excluded.strong_tokens_used,
-             weak_tokens_used=excluded.weak_tokens_used,
-             updated_at=datetime('now')""",
-        (record.id, record.task_description, record.dag_json,
-         record.status.value, record.strong_tokens_used, record.weak_tokens_used),
-    )
-    db.commit()
-
-
-def _save_node_result(db: sqlite3.Connection, task_id: str, nr: NodeResult) -> None:
-    db.execute(
-        """INSERT INTO node_results (task_id, node_id, iteration_count, status, generated_code, test_output)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (task_id, nr.node_id, nr.iteration_count, nr.status.value,
-         nr.generated_code, nr.test_output),
-    )
-    db.commit()
-
-
 def _save_output(base: Path, task_id: str, node: "DAGNode", nr: NodeResult) -> None:
     ext = "ts" if node.signature.language == "typescript" else "py"
     out_dir = base / "outputs" / task_id
@@ -451,36 +392,6 @@ def _save_output(base: Path, task_id: str, node: "DAGNode", nr: NodeResult) -> N
     filepath = out_dir / f"{node.node_id}.{ext}"
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(nr.generated_code)
-
-
-def _dag_to_json(dag: DAG) -> str:
-    import json as _json
-    nodes_data = []
-    for n in dag.nodes:
-        nodes_data.append({
-            "node_id": n.node_id,
-            "name": n.name,
-            "signature": {
-                "language": n.signature.language,
-                "function_name": n.signature.function_name,
-                "params": n.signature.params,
-                "return_type": n.signature.return_type,
-                "allowed_imports": n.signature.allowed_imports,
-                "methods": [
-                    {"name": m.name, "params": m.params, "return_type": m.return_type}
-                    for m in n.signature.methods
-                ],
-            },
-            "contract": {
-                "preconditions": n.contract.preconditions,
-                "postconditions": n.contract.postconditions,
-                "invariants": n.contract.invariants,
-            },
-            "test_skeleton": n.test_skeleton,
-            "max_iterations": n.max_iterations,
-            "dependencies": n.dependencies,
-        })
-    return _json.dumps({"nodes": nodes_data}, ensure_ascii=False, indent=2)
 
 
 if __name__ == "__main__":

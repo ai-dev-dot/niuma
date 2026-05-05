@@ -130,3 +130,50 @@ def _validate_dag(dag: DAG) -> list[str]:
 
 class CompilationError(Exception):
     pass
+
+
+def commit_dag(dag: DAG, repo_path: str, task_id: str) -> str:
+    """将 DAG 序列化为 .niuma/dag.json 并 git commit。返回文件路径。"""
+    import json as _json
+    from pathlib import Path
+
+    import project_manager as _pm
+
+    dag_data = {
+        "task_id": task_id,
+        "nodes": []
+    }
+    for n in dag.nodes:
+        dag_data["nodes"].append({
+            "node_id": n.node_id,
+            "name": n.name,
+            "signature": {
+                "language": n.signature.language,
+                "function_name": n.signature.function_name,
+                "params": n.signature.params,
+                "return_type": n.signature.return_type,
+                "allowed_imports": n.signature.allowed_imports,
+                "methods": [
+                    {"name": m.name, "params": m.params, "return_type": m.return_type}
+                    for m in n.signature.methods
+                ],
+            },
+            "contract": {
+                "preconditions": n.contract.preconditions,
+                "postconditions": n.contract.postconditions,
+                "invariants": n.contract.invariants,
+            },
+            "test_skeleton": n.test_skeleton,
+            "max_iterations": n.max_iterations,
+            "dependencies": n.dependencies,
+        })
+
+    content = _json.dumps(dag_data, indent=2, ensure_ascii=False)
+    _pm.commit_file(
+        repo_path,
+        ".niuma/dag.json",
+        content,
+        _pm.GIT_AUTHOR_COMPILER,
+        f"compiler: DAG for task {task_id} ({len(dag.nodes)} nodes)",
+    )
+    return str(Path(repo_path) / ".niuma" / "dag.json")

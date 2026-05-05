@@ -246,9 +246,22 @@ def _run_task_in_project(project: dict) -> None:
 
             # 调用管道
             import main as _main
+            import project_manager as _pm
             os.chdir(str(proj_path))
-            _main.run_task(task_desc, str(proj_path))
+            success = _main.run_task(task_desc, str(proj_path))
+
+            # 显示 git 分支状态
+            current_branch = _pm.get_current_branch(proj_path)
+            branches = _pm.list_task_branches(proj_path)
             os.chdir(str(Path(__file__).resolve().parent))
+            print()
+            if success:
+                print(f"  [OK] 分支 {current_branch} 就绪，人类审阅后 merge | Branch ready for human review")
+                print(f"  审阅 | review: cd {proj_path} && git log --oneline {current_branch}")
+                if branches:
+                    print(f"  niuma 任务分支 | task branches: {', '.join(branches)}")
+            else:
+                print(f"  [!!] 分支 {current_branch} 保留供检查 | Branch kept for inspection")
             print()
             _wait()
     except ValueError:

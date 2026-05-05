@@ -110,3 +110,118 @@ def get_project_path(name: str) -> Path | None:
         return None
     p = Path(proj["local_path"])
     return p if p.exists() else None
+
+
+# ═══════════════════════════════════════════════════════════════
+# Git 操作 —— 强/弱模型通过 git 分支通信
+# ═══════════════════════════════════════════════════════════════
+
+GIT_AUTHOR_COMPILER = ("Strong Model", "niuma@compiler")
+GIT_AUTHOR_WORKER = ("Weak Model", "niuma@worker")
+GIT_AUTHOR_REVIEWER = ("Strong Model", "niuma@compiler")
+BRANCH_PREFIX = "niuma"
+
+
+def git_run(repo_path: str | Path, args: list[str], check: bool = True) -> str:
+    """在指定仓库中运行 git 命令，返回 stdout。失败时抛出 RuntimeError。"""
+    result = subprocess.run(
+        ["git"] + args,
+        cwd=str(repo_path),
+        capture_output=True,
+        text=True,
+    )
+    if check and result.returncode != 0:
+        raise RuntimeError(
+            f"git {' '.join(args)} 失败 | failed:\n{result.stderr.strip()}"
+        )
+    return result.stdout.strip()
+
+
+def create_task_branch(repo_path: str | Path, task_id: str) -> str:
+    """创建任务分支 niuma/<task-id> 并切换过去。返回分支名。"""
+    branch = f"{BRANCH_PREFIX}/{task_id}"
+    # 从当前 HEAD 直接切出新分支（不强制切 main，避免工作区冲突）
+    git_run(repo_path, ["checkout", "-b", branch])
+    return branch
+
+
+def get_current_branch(repo_path: str | Path) -> str:
+    return git_run(repo_path, ["branch", "--show-current"])
+
+
+def branch_exists(repo_path: str | Path, branch: str) -> bool:
+    try:
+        git_run(repo_path, ["rev-parse", "--verify", branch])
+        return True
+    except RuntimeError:
+        return False
+
+
+def switch_branch(repo_path: str | Path, branch: str) -> None:
+    git_run(repo_path, ["checkout", branch])
+
+
+def commit_file(
+    repo_path: str | Path,
+    filepath: str,
+    content: str,
+    author: tuple[str, str],
+    message: str,
+) -> None:
+    """写文件 + git add + git commit --author。filepath 相对于 repo_path。"""
+    full_path = Path(repo_path) / filepath
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    full_path.write_text(content, encoding="utf-8")
+
+    git_run(repo_path, ["add", filepath])
+    git_run(repo_path, [
+        "commit",
+        "-m", message,
+        f"--author={author[0]} <{author[1]}>",
+    ])
+
+
+def commit_existing(
+    repo_path: str | Path,
+    filepath: str,
+    author: tuple[str, str],
+    message: str,
+) -> None:
+    """对已存在的文件执行 git add + git commit。"""
+    git_run(repo_path, ["add", filepath])
+    git_run(repo_path, [
+        "commit",
+        "-m", message,
+        f"--author={author[0]} <{author[1]}>",
+    ])
+
+
+def read_file_from_branch(repo_path: str | Path, branch: str, filepath: str) -> str:
+    """从指定分支读取文件内容。"""
+    return git_run(repo_path, ["show", f"{branch}:{filepath}"])
+
+
+def merge_to_main(repo_path: str | Path, branch: str) -> bool:
+    """将分支合并到 main。返回 True 表示成功。不自动 push。"""
+    try:
+        current = get_current_branch(repo_path)
+        git_run(repo_path, ["checkout", "main"])
+        git_run(repo_path, ["merge", "--no-ff", branch, "-m", f"Merge {branch}: task completed"])
+        git_run(repo_path, ["branch", "-d", branch])
+        return True
+    except RuntimeError:
+        # 合并冲突时恢复原分支
+        try:
+            git_run(repo_path, ["merge", "--abort"], check=False)
+            git_run(repo_path, ["checkout", current], check=False)
+        except Exception:
+            pass
+        return False
+
+
+def list_task_branches(repo_path: str | Path) -> list[str]:
+    """列出所有 niuma/ 开头的分支。"""
+    output = git_run(repo_path, ["branch", "--list", f"{BRANCH_PREFIX}/*"], check=False)
+    if not output:
+        return []
+    return [b.strip().lstrip("* ") for b in output.splitlines() if b.strip()]
