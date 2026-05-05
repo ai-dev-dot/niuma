@@ -85,7 +85,8 @@ cd niuma
   4. 退出 | Exit
 ```
 
-在菜单里配置模型（API Key、接口地址、模型名），然后创建或打开项目、运行任务。全在一个地方搞定。
+在菜单里选择供应商（支持 9 家：OpenAI、DeepSeek、Groq、OpenRouter、硅基流动、
+智谱AI、阿里百炼、MiniMax、月之暗面），填入 API Key，就配置完了。接口地址和模型列表自动补全。
 
 ### 环境检查
 
@@ -132,7 +133,7 @@ DAG 节点的 `signature.language` 字段决定用哪个运行时。加新语言
 ## 当前状态
 
 原型阶段——29 个系统测试全部通过。compiler → worker → reviewer 闭环在用 mock API 的情况下跑通。
-要用真实 LLM 端到端运行，配置 `.env` 文件即可。
+要用真实 LLM 端到端运行，运行 `./niuma` → 快速配置，选一家供应商即可。
 
 ## 设计决策记录
 

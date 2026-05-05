@@ -82,8 +82,9 @@ That's it. The first run auto-installs dependencies, then opens the menu:
   4. 退出 | Exit
 ```
 
-From the menu, configure your models (API key, base URL, model name),
-then create or open a project and run tasks. All in one place.
+From the menu, pick a provider (9 vendors supported: OpenAI, DeepSeek, Groq,
+OpenRouter, SiliconFlow, ZhipuAI, DashScope, MiniMax, Moonshot/Kimi),
+enter your API key, and you're done. Base URL and model list are auto-filled.
 
 ### Verify
 
@@ -132,7 +133,7 @@ don't need to change.
 ## Status
 
 Prototype — 29 system tests passing. The compiler → worker → reviewer loop is functional with
-mocked API calls. To run end-to-end with real LLMs, configure your `.env` file.
+mocked API calls. To run end-to-end with real LLMs, run `./niuma` → Quick Setup and pick a provider.
 
 ## License
 
