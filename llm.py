@@ -33,7 +33,12 @@ def call(
 
     api_key = api_key or os.getenv("LLM_API_KEY", "")
     base_url = base_url or os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
-    model = model or os.getenv("LLM_MODEL", "gpt-4o")
+    model = model or os.getenv("LLM_MODEL", "")
+    if not model:
+        raise RuntimeError(
+            "未配置模型 | No model configured. "
+            "请在 .env 中设置 STRONG_MODEL / WEAK_MODEL | Set STRONG_MODEL/WEAK_MODEL in .env"
+        )
 
     if not api_key:
         raise RuntimeError(
