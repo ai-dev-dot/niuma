@@ -92,15 +92,22 @@ def _generate_code(node: DAGNode, context: dict[str, str], previous: NodeResult,
 只输出 TypeScript 代码。不要输出解释或 markdown 标记。"""
 
     if previous.generated_code and previous.test_output:
+        # 截断错误输出，防止 prompt 爆炸
+        err_short = previous.test_output
+        if len(err_short) > 2000:
+            err_short = err_short[:1000] + "\n...(中间省略)...\n" + err_short[-1000:]
+        code_short = previous.generated_code
+        if len(code_short) > 3000:
+            code_short = code_short[:1500] + "\n// ...(省略)...\n" + code_short[-1500:]
         prompt += f"""
 
-上一次生成的代码:
+上一次生成的代码（已截断）:
 ```typescript
-{previous.generated_code}
+{code_short}
 ```
 
-上一次测试失败:
-{previous.test_output}
+上一次测试失败（已截断）:
+{err_short}
 
 请修复以上错误。"""
 
@@ -109,8 +116,11 @@ def _generate_code(node: DAGNode, context: dict[str, str], previous: NodeResult,
 
 
 def _extract_code(raw: str) -> str:
-    """从弱模型响应中提取纯代码（去掉 markdown 标记等）。"""
+    """从弱模型响应中提取纯代码（去掉 think 块、markdown 标记等）。"""
+    import re as _re
     text = raw.strip()
+    # 去掉模型的思考过程
+    text = _re.sub(r'<think>[\s\S]*?</think>', '', text)
     for fence in ["```typescript", "```ts", "```python", "```"]:
         if fence in text:
             parts = text.split(fence, 1)
