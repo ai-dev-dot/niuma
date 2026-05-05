@@ -1,6 +1,10 @@
 # Claude Code local settings
 .claude/
 
+# Python
+__pycache__/
+.pytest_cache/
+
 # Logs
 logs
 *.log
