@@ -91,6 +91,13 @@ PROVIDERS = {
         "strong_models": ["qwen-max", "qwen-plus", "qwen3-235b-a22b"],
         "weak_models": ["qwen-turbo", "qwen-plus", "qwen3-8b"],
     },
+    "minimax": {
+        "name": "MiniMax (海螺AI)",
+        "base_url": "https://api.minimaxi.com/v1",
+        "key_hint": "https://platform.minimaxi.com/user-center/basic-information/interface-key",
+        "strong_models": ["MiniMax-M2.7", "MiniMax-M2.5", "MiniMax-M2.1"],
+        "weak_models": ["MiniMax-M2.7", "MiniMax-M2.5"],
+    },
     "kimi": {
         "name": "月之暗面 (Moonshot/Kimi)",
         "base_url": "https://api.moonshot.cn/v1",
