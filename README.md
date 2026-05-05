@@ -67,9 +67,29 @@ understand the overall task — it only fills in typed blanks.
 ```bash
 git clone https://github.com/ai-dev-dot/niuma.git
 cd niuma
+
+# Install dependencies (one time)
+pip install -r requirements.txt
+npm install
+
+# Configure
 cp .env.example .env
 # Edit .env with your API key and model names
 ```
+
+### Verify
+
+```bash
+python main.py --doctor
+```
+This checks Python, Node.js, npm, jest, pytest, .env configuration, and available tasks.
+
+### Dry Run
+
+```bash
+python main.py --dry-run
+```
+Runs the full pipeline with mocked API calls — validates structure without spending tokens.
 
 ### Run
 
@@ -82,7 +102,6 @@ python main.py --inline "implement a thread-safe LRU cache in TypeScript"
 ### Test
 
 ```bash
-pip install pytest
 python -m pytest system_tests/ -v
 ```
 

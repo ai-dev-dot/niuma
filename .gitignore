@@ -5,6 +5,9 @@
 __pycache__/
 .pytest_cache/
 
+# Node.js
+node_modules/
+
 # Logs
 logs
 *.log

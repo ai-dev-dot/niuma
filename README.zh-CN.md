@@ -70,9 +70,29 @@
 ```bash
 git clone https://github.com/ai-dev-dot/niuma.git
 cd niuma
+
+# 安装依赖（一次性）
+pip install -r requirements.txt
+npm install
+
+# 配置
 cp .env.example .env
 # 编辑 .env，填入 API key 和模型名
 ```
+
+### 环境检查
+
+```bash
+python main.py --doctor
+```
+检查 Python、Node.js、npm、jest、pytest、.env 配置、任务文件是否全部就绪。
+
+### 试运行
+
+```bash
+python main.py --dry-run
+```
+用 mock 数据跑完整流程，不消耗任何 token，验证结构正确。
 
 ### 运行
 
@@ -85,7 +105,6 @@ python main.py --inline "用 TypeScript 实现一个线程安全的 LRU 缓存"
 ### 测试
 
 ```bash
-pip install pytest
 python -m pytest system_tests/ -v
 ```
 

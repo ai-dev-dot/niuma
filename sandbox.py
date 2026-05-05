@@ -1,4 +1,6 @@
-"""沙箱执行引擎 —— 在受限子进程中运行 AI 生成的代码和测试。"""
+"""沙箱执行引擎 | Sandbox Execution Engine
+在受限子进程中运行 AI 生成的代码和测试。
+Runs AI-generated code + tests inside limited subprocesses."""
 
 import os
 import shutil
@@ -9,9 +11,12 @@ from pathlib import Path
 try:
     import resource as _resource
 except ImportError:
-    _resource = None  # Windows 不支持 resource 模块
+    _resource = None  # Windows does not support the resource module
 
 from models import SandboxResult
+
+# 项目根目录 —— 用于定位 node_modules 和 jest 配置
+_PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 def execute(
@@ -21,19 +26,25 @@ def execute(
     cpu_timeout: int = 30,
     memory_limit_mb: int = 256,
 ) -> SandboxResult:
-    """在受限环境中执行 code + test_code，返回结构化结果。"""
+    """在受限环境中执行 code + test_code，返回结构化结果。
+    Execute code + test_code in a restricted environment."""
+
+    if language not in ("typescript", "python"):
+        return SandboxResult(
+            exit_code=-1,
+            stdout="",
+            stderr=_bilingual(
+                f"不支持的语言: {language}",
+                f"Unsupported language: {language}",
+            ),
+        )
+
     tmpdir = tempfile.mkdtemp(prefix="niuma_sandbox_")
     try:
         if language == "typescript":
             return _execute_typescript(tmpdir, code, test_code, cpu_timeout, memory_limit_mb)
-        elif language == "python":
-            return _execute_python(tmpdir, code, test_code, cpu_timeout, memory_limit_mb)
         else:
-            return SandboxResult(
-                exit_code=-1,
-                stdout="",
-                stderr=f"不支持的语言: {language}",
-            )
+            return _execute_python(tmpdir, code, test_code, cpu_timeout, memory_limit_mb)
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -45,35 +56,35 @@ def _execute_typescript(
     cpu_timeout: int,
     memory_limit_mb: int,
 ) -> SandboxResult:
-    """运行 TypeScript 代码 + Jest 测试。"""
-    # 写出代码文件
+    """运行 TypeScript 代码 + Jest 测试。使用项目本地 node_modules。"""
     code_file = Path(tmpdir) / "solution.ts"
     code_file.write_text(code, encoding="utf-8")
 
-    # 写出测试文件
     test_file = Path(tmpdir) / "solution.test.ts"
-    test_content = _build_jest_test(code, test_code, code_file.name)
+    test_content = f"// Solution\n{code}\n\n// Tests\n{test_code}\n"
     test_file.write_text(test_content, encoding="utf-8")
 
-    # 写出 jest.config
+    # 在临时目录里写一个最小 jest.config，让 jest 能找到 ts-jest preset
     jest_config = Path(tmpdir) / "jest.config.js"
-    jest_config.write_text(
-        """module.exports = {
+    jest_config.write_text(f"""const path = require('path');
+module.exports = {{
   preset: 'ts-jest',
   testEnvironment: 'node',
   testMatch: ['**/*.test.ts'],
   testTimeout: 30000,
-};\n""",
-        encoding="utf-8",
-    )
-
-    # 写 package.json（Jest 需要）
-    pkg = Path(tmpdir) / "package.json"
-    pkg.write_text('{"type": "commonjs"}\n', encoding="utf-8")
+  rootDir: '{tmpdir.replace(chr(92), '/')}',
+  // 指向项目根目录的 node_modules
+  moduleDirectories: ['{str(_PROJECT_ROOT).replace(chr(92), '/')}/node_modules', 'node_modules'],
+}};\n""", encoding="utf-8")
 
     return _run_subprocess(
-        ["npx", "jest", "--no-color", "--verbose"],
-        cwd=tmpdir,
+        [
+            "npx", "--no-install", "jest",
+            "--config", str(jest_config),
+            "--no-color", "--verbose",
+            "--roots", tmpdir,
+        ],
+        cwd=str(_PROJECT_ROOT),  # 从项目根执行，确保 npx 找本地 jest
         cpu_timeout=cpu_timeout,
         memory_limit_mb=memory_limit_mb,
     )
@@ -87,10 +98,8 @@ def _execute_python(
     memory_limit_mb: int,
 ) -> SandboxResult:
     """运行 Python 代码 + pytest。"""
-    # 写出代码 + 测试到同一个文件
     test_file = Path(tmpdir) / "test_solution.py"
-    test_content = f"{code}\n\n{test_code}\n"
-    test_file.write_text(test_content, encoding="utf-8")
+    test_file.write_text(f"{code}\n\n{test_code}\n", encoding="utf-8")
 
     return _run_subprocess(
         ["python", "-m", "pytest", str(test_file), "-v", "--tb=short"],
@@ -98,16 +107,6 @@ def _execute_python(
         cpu_timeout=cpu_timeout,
         memory_limit_mb=memory_limit_mb,
     )
-
-
-def _build_jest_test(code: str, test_code: str, module_path: str) -> str:
-    """构建 Jest 测试文件模板。"""
-    return f"""// 被测代码
-{code}
-
-// 测试
-{test_code}
-"""
 
 
 def _run_subprocess(
@@ -145,6 +144,14 @@ def _run_subprocess(
         return SandboxResult(
             exit_code=-1,
             stdout="",
-            stderr="执行超时",
+            stderr=_bilingual(
+                f"执行超时（{cpu_timeout}s 限制）",
+                f"Execution timed out ({cpu_timeout}s limit)",
+            ),
             timed_out=True,
         )
+
+
+def _bilingual(zh: str, en: str) -> str:
+    """中英双语错误消息。"""
+    return f"{zh} / {en}"
