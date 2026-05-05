@@ -228,34 +228,37 @@ def _make_mock_node() -> "DAGNode":
 
 
 # ═══════════════════════════════════════════════════════════════
-# run: 真实执行
+# run_task: 供 cli.py 和其他入口调用的核心函数
 # ═══════════════════════════════════════════════════════════════
 
-def _cmd_run(args: argparse.Namespace) -> None:
-    task_desc = _read_task(args)
+def run_task(task_description: str, project_path: str = "") -> bool:
+    """运行一次完整 pipeline：编译 → 执行 → 审核。
+    Run full pipeline: compile → execute → review.
+    返回 True 表示任务成功完成。Returns True if task completed successfully."""
+    base = Path(project_path) if project_path else _PROJECT_ROOT
     task_id = str(uuid.uuid4())[:8]
     t_total = time.time()
 
-    db = _init_db()
+    db = _init_db(base)
     _ensure_schema(db)
 
-    print(f"[{task_id}] 任务 | Task: {task_desc[:80]}{'...' if len(task_desc) > 80 else ''}")
+    print(f"[{task_id}] 任务 | Task: {task_description[:80]}{'...' if len(task_description) > 80 else ''}")
 
     # —— 编译 | Compile ——
-    record = TaskRecord(id=task_id, task_description=task_desc)
+    record = TaskRecord(id=task_id, task_description=task_description)
     record.status = TaskStatus.COMPILING
     _upsert_task(db, record)
 
     t0 = time.time()
     print(f"[{task_id}] 编译 | Compiling...")
     try:
-        dag = compiler.compile_task(task_desc)
+        dag = compiler.compile_task(task_description)
     except compiler.CompilationError as e:
         print(f"[{task_id}] X 编译失败 | Compilation failed: {e}")
         record.status = TaskStatus.FAILED
         _upsert_task(db, record)
         db.close()
-        sys.exit(1)
+        return False
     print(f"[{task_id}] [OK] DAG: {len(dag.nodes)} 节点 | nodes ({time.time() - t0:.1f}s)")
 
     record.dag_json = _dag_to_json(dag)
@@ -277,7 +280,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
         if nr.status == NodeStatus.PASSED:
             completed_context[node.node_id] = nr.generated_code
-            _save_output(task_id, node, nr)
+            _save_output(base, task_id, node, nr)
             print(f"  [OK] {node.node_id} 通过 | passed ({nr.iteration_count} 轮 | iter, {time.time() - t_node:.1f}s)")
         else:
             print(f"  X {node.node_id} 失败 | failed ({nr.iteration_count} 轮 | iter)")
@@ -292,7 +295,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
     for review_round in range(1, 4):
         print(f"[{task_id}] 审核 | Reviewing (第{review_round}轮 | round {review_round}/3)...")
         t_rev = time.time()
-        rv = reviewer.review(task_desc, dag, node_results)
+        rv = reviewer.review(task_description, dag, node_results)
 
         if rv.passed:
             review_passes = True
@@ -300,7 +303,6 @@ def _cmd_run(args: argparse.Namespace) -> None:
             break
 
         print(f"  X FAIL: {rv.suggestions[:200]}")
-        # 重做失败节点 | Re-run failed nodes
         for node in dag.topological_order():
             if node.node_id in rv.failed_nodes:
                 print(f"    重做 | retry: {node.node_id}...")
@@ -312,7 +314,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
                 _save_node_result(db, task_id, nr)
                 if nr.status == NodeStatus.PASSED:
                     completed_context[node.node_id] = nr.generated_code
-                    _save_output(task_id, node, nr)
+                    _save_output(base, task_id, node, nr)
 
         passed_count = sum(1 for nr in node_results if nr.status == NodeStatus.PASSED)
 
@@ -329,17 +331,29 @@ def _cmd_run(args: argparse.Namespace) -> None:
             passed_count=passed_count,
             total_count=len(dag.nodes),
         )
-        metrics.record(entry)
+        metrics.record(entry, output_dir=str(base / "outputs"))
         metrics.print_summary(entry)
-        print(f"[{task_id}] 产物 | Output: outputs/{task_id}/")
-        print(f"[{task_id}] ⏱ 总耗时 | Total: {total_time:.1f}s")
+        print(f"[{task_id}] 产物 | Output: {base / 'outputs' / task_id}/")
+        print(f"[{task_id}] 总耗时 | Total: {total_time:.1f}s")
     else:
         record.status = TaskStatus.FAILED
         _upsert_task(db, record)
         print(f"[{task_id}] X 审核 3 轮未通过 | Review failed after 3 rounds ({total_time:.1f}s)")
-        sys.exit(1)
 
     db.close()
+    return review_passes
+
+
+# ═══════════════════════════════════════════════════════════════
+# run: 真实执行（CLI 入口 — 向后兼容）
+# ═══════════════════════════════════════════════════════════════
+
+def _cmd_run(args: argparse.Namespace) -> None:
+    """CLI 入口 — 委托给 run_task()。"""
+    task_desc = _read_task(args)
+    success = run_task(task_desc)
+    if not success:
+        sys.exit(1)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -370,8 +384,10 @@ def _run_cmd(cmd: list[str]) -> str:
         return ""
 
 
-def _init_db() -> sqlite3.Connection:
-    db = sqlite3.connect("state.sqlite")
+def _init_db(base: Path | None = None) -> sqlite3.Connection:
+    base = base or _PROJECT_ROOT
+    db_path = base / "state.sqlite"
+    db = sqlite3.connect(str(db_path))
     db.execute("PRAGMA journal_mode=WAL")
     db.row_factory = sqlite3.Row
     return db
@@ -428,11 +444,11 @@ def _save_node_result(db: sqlite3.Connection, task_id: str, nr: NodeResult) -> N
     db.commit()
 
 
-def _save_output(task_id: str, node: "DAGNode", nr: NodeResult) -> None:
+def _save_output(base: Path, task_id: str, node: "DAGNode", nr: NodeResult) -> None:
     ext = "ts" if node.signature.language == "typescript" else "py"
-    out_dir = os.path.join("outputs", task_id)
-    os.makedirs(out_dir, exist_ok=True)
-    filepath = os.path.join(out_dir, f"{node.node_id}.{ext}")
+    out_dir = base / "outputs" / task_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    filepath = out_dir / f"{node.node_id}.{ext}"
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(nr.generated_code)
 

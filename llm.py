@@ -3,7 +3,6 @@
 OpenAI-compatible with exponential backoff, token counting, and progress feedback."""
 
 import json
-import os
 import sys
 import time
 import urllib.error
@@ -31,20 +30,15 @@ def call(
 ) -> LLMResponse:
     """调用 LLM API，含指数退避重试。"""
 
-    api_key = api_key or os.getenv("LLM_API_KEY", "")
-    base_url = base_url or os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
-    model = model or os.getenv("LLM_MODEL", "")
-    if not model:
-        raise RuntimeError(
-            "未配置模型 | No model configured. "
-            "请在 .env 中设置 STRONG_MODEL / WEAK_MODEL | Set STRONG_MODEL/WEAK_MODEL in .env"
-        )
-
     if not api_key:
         raise RuntimeError(
-            "LLM_API_KEY 未设置 | LLM_API_KEY not set. "
-            "请复制 .env.example 为 .env 并填入你的 API key | "
-            "Copy .env.example to .env and add your API key."
+            "未配置 API Key | API key not configured.\n"
+            "运行 niuma 进入菜单 → 配置模型 | Run niuma → Configure model"
+        )
+    if not model:
+        raise RuntimeError(
+            "未配置模型 | No model configured.\n"
+            "运行 niuma 进入菜单 → 配置模型 | Run niuma → Configure model"
         )
 
     url = f"{base_url.rstrip('/')}/chat/completions"
@@ -128,9 +122,13 @@ def call(
 
 def call_strong(prompt: str, **kwargs) -> LLMResponse:
     """调用强模型（编译器/审核器）| Call strong model (compiler/reviewer)."""
+    import config as _cfg
+    c = _cfg.get_model_config("strong")
     return call(
         prompt,
-        model=kwargs.pop("model", None) or os.getenv("STRONG_MODEL", ""),
+        model=kwargs.pop("model", None) or c["model"],
+        api_key=kwargs.pop("api_key", None) or c["api_key"],
+        base_url=kwargs.pop("base_url", None) or c["base_url"],
         max_tokens=kwargs.pop("max_tokens", 4096),
         temperature=kwargs.pop("temperature", 0.1),
         system=kwargs.pop("system", ""),
@@ -140,9 +138,13 @@ def call_strong(prompt: str, **kwargs) -> LLMResponse:
 
 def call_weak(prompt: str, **kwargs) -> LLMResponse:
     """调用弱模型（代码生成器）| Call weak model (code generator)."""
+    import config as _cfg
+    c = _cfg.get_model_config("weak")
     return call(
         prompt,
-        model=kwargs.pop("model", None) or os.getenv("WEAK_MODEL", ""),
+        model=kwargs.pop("model", None) or c["model"],
+        api_key=kwargs.pop("api_key", None) or c["api_key"],
+        base_url=kwargs.pop("base_url", None) or c["base_url"],
         max_tokens=kwargs.pop("max_tokens", 2048),
         temperature=kwargs.pop("temperature", 0.3),
         system=kwargs.pop("system", ""),

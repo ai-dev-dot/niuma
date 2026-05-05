@@ -1,0 +1,25 @@
+[project]
+name = "niuma"
+version = "0.1.0"
+description = "Compiler-driven AI task orchestration for resource-constrained hardware"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+readme = "README.md"
+
+[project.scripts]
+niuma = "cli:main"
+
+[tool.setuptools]
+py-modules = [
+    "cli",
+    "compiler",
+    "config",
+    "llm",
+    "main",
+    "metrics",
+    "models",
+    "project_manager",
+    "reviewer",
+    "sandbox",
+    "worker",
+]
