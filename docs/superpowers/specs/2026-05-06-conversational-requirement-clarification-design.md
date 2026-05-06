@@ -178,6 +178,34 @@ history 按时间顺序追加，compile 阶段将完整 history 作为上下文�
   分支 niuma/e3fc810e 就绪，审阅后 push
 ```
 
+### 可配置的重复次数限制
+
+所有重试/轮次限制放入 `~/.niuma/config.json`：
+
+```json
+{
+  "strong": { ... },
+  "weak": { ... },
+  "retry_limits": {
+    "clarify_rounds": 20,
+    "compiler_schema_validation": 5,
+    "worker_code_extraction": 5,
+    "reviewer_rounds": 5,
+    "llm_api_max_retries": 3
+  }
+}
+```
+
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `clarify_rounds` | 20 | 需求澄清最大追问轮数 |
+| `compiler_schema_validation` | 5 | DAG JSON Schema 校验失败重试次数 |
+| `worker_code_extraction` | 5 | 从模型返回中提取代码块失败重试次数 |
+| `reviewer_rounds` | 5 | 审核 FAIL 后回传 worker 修复的最大轮数 |
+| `llm_api_max_retries` | 3 | LLM API 超时/网络错误重试次数 |
+
+内部读取逻辑：所有模块从 `config.py` 获取限制值，禁止硬编码数字。默认值宽容——宁可多试几次，不因次数不够而失败。
+
 ### 改动清单
 
 | 文件 | 改动 |
@@ -192,9 +220,8 @@ history 按时间顺序追加，compile 阶段将完整 history 作为上下文�
 
 ### 不改的文件
 
-- `llm.py` — 复用 `call_strong` / `call_weak`
+- `llm.py` — 复用 `call_strong` / `call_weak`，`max_retries` 从 config 读取
 - `sandbox.py` — 不受影响
-- `config.py` — 不受影响
 - `dag_schema.json` — 不受影响
 
 ### 测试要点
