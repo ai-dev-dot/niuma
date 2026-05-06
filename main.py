@@ -268,15 +268,16 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
     from pathlib import Path as _Path
     log_dir = base / ".niuma" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
+    import llm as _llm
+
     log_file = log_dir / f"{_dt.date.today().isoformat()}_{task_id}.jsonl"
-    llm.set_log_path(str(log_file))
+    _llm.set_log_path(str(log_file))
 
     def _write_log(entry: dict) -> None:
         entry["ts"] = _dt.datetime.now().strftime("%H:%M:%S.%f")[:-3]
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
 
-    import llm as _llm
     _llm.set_log_callback(_write_log)
     _write_log({"role": "pipeline", "action": "start", "task_desc": task_description[:200]})
 
@@ -313,7 +314,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
     else:
         print(f"[{task_id}] 编译 | Compiling...")
     try:
-        llm.set_meta({"role": "compiler", "task_id": task_id})
+        _llm.set_meta({"role": "compiler", "task_id": task_id})
         dag = compiler.compile_task(task_description, verbose=verbose)
     except compiler.CompilationError as e:
         print(f"[{task_id}] X 编译失败 | Compilation failed: {e}")
@@ -378,7 +379,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
         else:
             print(f"[{task_id}] 审核 | Reviewing (第{review_round}轮 | round {review_round}/3)...")
         t_rev = time.time()
-        llm.set_meta({"role": "reviewer", "task_id": task_id})
+        _llm.set_meta({"role": "reviewer", "task_id": task_id})
         rv = reviewer.review(task_description, dag, node_results, verbose=verbose)
 
         # 强模型提交审核结论到 git

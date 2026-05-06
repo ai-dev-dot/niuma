@@ -137,7 +137,8 @@ DAG 节点的 `signature.language` 字段决定用哪个运行时。加新语言
 
 ## 设计决策记录
 
-详细设计文档见 `docs/design-20260505.zh-CN.md`，包含完整的 DAG 节点规范、故障恢复策略、Prompt 模板和架构审查记录。
+详细设计文档见 `docs/design-20260505.zh-CN.md`，包含完整的 DAG 节点规范、故障恢复策略、Prompt 模板和架构审查记录。  
+用户手册见 `docs/user-guide.zh-CN.md`，包含完整的操作流程、项目管理和 Git 工作流。
 
 ## License
 
