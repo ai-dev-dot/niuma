@@ -4,6 +4,7 @@ from pathlib import Path
 
 import llm
 from models import DAG, NodeResult, ReviewResult
+import config as _cfg
 
 
 def review(task_description: str, dag: DAG, node_results: list[NodeResult], verbose: bool = False) -> ReviewResult:
@@ -26,6 +27,27 @@ def review(task_description: str, dag: DAG, node_results: list[NodeResult], verb
                 print(f"    建议: {rv.suggestions[:200]}")
 
     return rv
+
+
+def _collect_node_results(repo_path: str, dag: "DAG") -> list["NodeResult"]:
+    """从文件系统收集所有节点的执行结果。"""
+    from models import NodeResult, NodeStatus
+
+    results = []
+    for node in dag.nodes:
+        ext = "ts" if node.signature.language == "typescript" else "py"
+        code_file = Path(repo_path) / "src" / f"{node.node_id}.{ext}"
+
+        nr = NodeResult(node_id=node.node_id)
+        if code_file.exists():
+            nr.status = NodeStatus.PASSED
+            nr.generated_code = code_file.read_text(encoding="utf-8")
+            nr.iteration_count = 1  # 从文件系统无法得知具体迭代数
+        else:
+            nr.status = NodeStatus.FAILED
+            nr.test_output = "文件不存在 | file not found"
+        results.append(nr)
+    return results
 
 
 def _build_review_prompt(task_description: str, dag: DAG, node_results: list[NodeResult]) -> str:
@@ -111,3 +133,24 @@ def commit_review(result: ReviewResult, repo_path: str, task_id: str) -> str:
         f"reviewer: {status} for task {task_id}",
     )
     return str(Path(repo_path) / ".niuma" / "review.md")
+
+
+def review_from_git(repo_path: str, task_id: str, verbose: bool = False) -> "ReviewResult":
+    """从 git 读取所有节点产物，审核，commit review.md。"""
+    import json as _json
+    from compiler import _parse_dag
+
+    dag_file = Path(repo_path) / ".niuma" / "dag.json"
+    if not dag_file.exists():
+        raise FileNotFoundError(f"dag.json 不存在: {dag_file}")
+
+    dag = _parse_dag(_json.dumps(_json.loads(dag_file.read_text(encoding="utf-8"))))
+
+    # 读取 requirement.md 作为 task_description
+    req_file = Path(repo_path) / ".niuma" / "requirement.md"
+    task_desc = req_file.read_text(encoding="utf-8") if req_file.exists() else ""
+
+    # 从文件系统收集节点结果
+    node_results = _collect_node_results(repo_path, dag)
+
+    return review(task_desc, dag, node_results, verbose=verbose)
