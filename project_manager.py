@@ -178,6 +178,8 @@ def commit_file(
 ) -> None:
     """写文件 + git add + git commit --author。filepath 相对于 repo_path。"""
     full_path = Path(repo_path) / filepath
+    if full_path.exists() and full_path.read_text(encoding="utf-8") == content:
+        return
     full_path.parent.mkdir(parents=True, exist_ok=True)
     full_path.write_text(content, encoding="utf-8")
 

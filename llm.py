@@ -1,13 +1,14 @@
 """LLM API 调用封装 | LLM API client
-支持 OpenAI 兼容接口，含指数退避、token 计数、进度反馈。
-OpenAI-compatible with exponential backoff, token counting, and progress feedback."""
+支持 OpenAI 兼容接口，含指数退避、token 计数、进度反馈、全量日志。
+OpenAI-compatible with exponential backoff, token counting, progress feedback, full logging."""
 
 import json
 import sys
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass
@@ -15,16 +16,46 @@ class LLMResponse:
     content: str
     input_tokens: int
     output_tokens: int
+    seq: int = 0
 
 
-# 模块级日志回调，main.py 设置后所有 API 调用自动记录
+# 模块级日志状态
+_log_path: str | None = None
+_log_seq: int = 0
+_meta: dict | None = None
 _log_callback: object = None
 
 
+def set_log_path(path: str) -> None:
+    global _log_path, _log_seq
+    _log_path = path
+    _log_seq = 0
+
+
 def set_log_callback(cb) -> None:
-    """设置全局日志回调。main.py 在 run_task 中调用。"""
     global _log_callback
     _log_callback = cb
+
+
+def set_meta(meta: dict) -> None:
+    """设置当前调用上下文（task_id, node_id, iteration 等），call() 内部消费后清空。"""
+    global _meta
+    _meta = meta
+
+
+def _write_record(record: dict) -> int:
+    global _log_seq
+    _log_seq += 1
+    record["seq"] = _log_seq
+    record["ts"] = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    if _log_path:
+        record["log_file"] = _log_path
+        try:
+            with open(_log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+    return _log_seq
 
 
 def call(
@@ -39,7 +70,7 @@ def call(
     max_retries: int = 3,
     log_callback=None,
 ) -> LLMResponse:
-    """调用 LLM API，含指数退避重试。"""
+    """调用 LLM API，含指数退避重试。每次调用自动写全量日志到 _log_path。"""
 
     if not api_key:
         raise RuntimeError(
@@ -59,18 +90,21 @@ def call(
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    body = json.dumps({
+    body_data: dict = {
         "model": model,
         "messages": messages,
-        "max_tokens": max_tokens,
         "temperature": temperature,
-    }).encode("utf-8")
+    }
+    if max_tokens > 0:
+        body_data["max_tokens"] = max_tokens
+    body = json.dumps(body_data).encode("utf-8")
 
     _log(f"  → {model} ({len(prompt)} chars) ...", end="", flush=True)
     t_start = time.time()
 
     last_error: Exception | None = None
     last_status: int = 0
+
     for attempt in range(max_retries + 1):
         try:
             req = urllib.request.Request(
@@ -93,10 +127,32 @@ def call(
             out_tok = usage.get("completion_tokens", 0)
             _log(f"\r  ✓ {model} ({elapsed:.1f}s, {in_tok}+{out_tok} tokens)")
 
+            # 写全量调用日志
+            global _meta
+            ctx = _meta or {}
+            _meta = None
+            seq = _write_record({
+                "type": "llm_call",
+                "role": ctx.get("role", "unknown"),
+                "task_id": ctx.get("task_id", ""),
+                "node_id": ctx.get("node_id", ""),
+                "iteration": ctx.get("iteration", 0),
+                "model": model,
+                "duration_s": round(elapsed, 1),
+                "attempt": attempt + 1,
+                "input_tokens": in_tok,
+                "output_tokens": out_tok,
+                "system_prompt": system,
+                "user_prompt": prompt,
+                "raw_response": content,
+                "error": None,
+            })
+
             result = LLMResponse(
                 content=content.strip(),
                 input_tokens=in_tok,
                 output_tokens=out_tok,
+                seq=seq,
             )
             log_data = {
                 "model": model,
@@ -153,7 +209,7 @@ def call_strong(prompt: str, **kwargs) -> LLMResponse:
         model=kwargs.pop("model", None) or c["model"],
         api_key=kwargs.pop("api_key", None) or c["api_key"],
         base_url=kwargs.pop("base_url", None) or c["base_url"],
-        max_tokens=kwargs.pop("max_tokens", 4096),
+        max_tokens=kwargs.pop("max_tokens", 0),
         temperature=kwargs.pop("temperature", 0.1),
         system=kwargs.pop("system", ""),
         **kwargs,
@@ -169,11 +225,19 @@ def call_weak(prompt: str, **kwargs) -> LLMResponse:
         model=kwargs.pop("model", None) or c["model"],
         api_key=kwargs.pop("api_key", None) or c["api_key"],
         base_url=kwargs.pop("base_url", None) or c["base_url"],
-        max_tokens=kwargs.pop("max_tokens", 2048),
+        max_tokens=kwargs.pop("max_tokens", 0),
         temperature=kwargs.pop("temperature", 0.3),
         system=kwargs.pop("system", ""),
         **kwargs,
     )
+
+
+def write_process_record(record: dict) -> None:
+    """写入处理层日志（代码提取、沙箱结果等）。"""
+    _write_record({
+        "type": "worker_process",
+        **record,
+    })
 
 
 def _log(msg: str, end: str = "\n", flush: bool = True) -> None:

@@ -8,7 +8,7 @@ import sandbox
 from models import DAGNode, NodeResult, NodeStatus, SandboxResult
 
 
-def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedback: str = "", verbose: bool = False) -> NodeResult:
+def execute_node(node: DAGNode, completed_context: dict[str, str], task_id: str = "", review_feedback: str = "", verbose: bool = False) -> NodeResult:
     """在沙箱中执行单个 DAG 节点，弱模型循环修复直到测试通过或超限。
     review_feedback: 审核器返回的修改建议，会注入到首次迭代的 prompt 中。"""
     result = NodeResult(node_id=node.node_id)
@@ -20,7 +20,10 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedba
     for iteration in range(1, node.max_iterations + 1):
         result.iteration_count = iteration
 
+        llm.set_meta({"role": "worker", "task_id": task_id, "node_id": node.node_id, "iteration": iteration})
         code = _generate_and_extract(node, completed_context, previous=result, review_feedback=review_feedback, verbose=verbose)
+        _log_extraction(code, node.signature.language, iteration)
+
         if not code.strip():
             result.status = NodeStatus.FAILED
             result.test_output = "弱模型未生成有效代码（多次尝试后仍无法提取）"
@@ -31,8 +34,8 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedba
         # 自检：让弱模型快速审查自己的代码
         if verbose:
             print(f"    [弱模型] 自检代码...")
+        llm.set_meta({"role": "selfcheck", "task_id": task_id, "node_id": node.node_id, "iteration": iteration})
         if not _quick_self_check(code, node.signature.language, verbose=verbose):
-            # 自检不通过，让弱模型修复后重新生成
             result.test_output = "弱模型自检不通过"
             if verbose:
                 print(f"    第{iteration}轮: 自检未通过，重新生成...")
@@ -46,6 +49,8 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedba
             language=node.signature.language,
         )
         result.test_output = sb_result.stdout + "\n" + sb_result.stderr
+
+        _log_sandbox(code, sb_result, node.signature.language, iteration)
 
         if verbose:
             status = "PASS" if sb_result.passed else "FAIL"
@@ -71,6 +76,29 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], review_feedba
     return result
 
 
+def _log_extraction(code: str, lang: str, iteration: int) -> None:
+    llm.write_process_record({
+        "stage": "extraction",
+        "iteration": iteration,
+        "lang": lang,
+        "code_length": len(code),
+        "code_preview": code[:200],
+        "extraction_ok": bool(code.strip()),
+    })
+
+
+def _log_sandbox(code: str, sb_result: SandboxResult, lang: str, iteration: int) -> None:
+    llm.write_process_record({
+        "stage": "sandbox",
+        "iteration": iteration,
+        "lang": lang,
+        "code": code,
+        "test_stdout": sb_result.stdout[:4000] if sb_result.stdout else "",
+        "test_stderr": sb_result.stderr[:4000] if sb_result.stderr else "",
+        "test_passed": sb_result.passed,
+    })
+
+
 def _generate_and_extract(node: DAGNode, context: dict[str, str], previous: NodeResult, review_feedback: str = "", verbose: bool = False) -> str:
     """生成代码并提取。如果提取结果不像代码，让弱模型重新输出（最多2次）。"""
     lang = node.signature.language
@@ -86,13 +114,12 @@ def _generate_and_extract(node: DAGNode, context: dict[str, str], previous: Node
         if verbose and retry > 0:
             print(f"    [弱模型] 第{retry}次提取失败，重新请求...")
         if retry < 2:
-            # 告诉弱模型它的输出格式有问题，让它重新输出
             review_feedback = (
                 f"你上一次的回复格式不正确——包含了太多解释文字，或者代码没有正确包裹在 "
                 f"```{code_fence} 代码块中。\n"
                 f"请重新输出：只输出一个 ```{code_fence} 代码块，里面放完整代码。"
             )
-            previous = NodeResult(node_id=node.node_id)  # 清除上次的错误记忆
+            previous = NodeResult(node_id=node.node_id)
 
     return ""
 
@@ -152,7 +179,7 @@ def _call_weak_model(node: DAGNode, context: dict[str, str], previous: NodeResul
 
 请修复以上错误并重新输出。"""
 
-    return llm.call_weak(prompt)
+    return llm.call_weak(prompt, system=f"你是一个{lang.upper()}程序员。只输出一个 ```{code_fence} 代码块，不要写解释、注释或思考过程。代码块之外不要写任何文字。")
 
 
 def _quick_self_check(code: str, lang: str, verbose: bool = False) -> bool:
@@ -169,7 +196,7 @@ def _quick_self_check(code: str, lang: str, verbose: bool = False) -> bool:
         content = resp.content.strip().upper()
         return "PASS" in content
     except Exception:
-        return True  # 自检失败时宽容处理，交给沙箱判断
+        return True
 
 
 def _extract_code(raw: str) -> str:
@@ -185,7 +212,6 @@ def _extract_code(raw: str) -> str:
                 inner = parts[1].split("```", 1)[0] if "```" in parts[1] else parts[1]
                 return inner.strip()
 
-    # 没有围栏标记，尝试去掉常见废话前缀
     for prefix in ["好的，", "以下是", "这是", "Here is", "Here's", "The user", "Let me", "I need", "I'll", "First", "We need"]:
         if text.lower().startswith(prefix.lower()):
             lines = text.split("\n", 1)
@@ -198,9 +224,9 @@ def _looks_like_code(text: str, lang: str = "typescript") -> bool:
     """判断提取的文本是否像代码。"""
     if not text or len(text) < 10:
         return False
-    indicators = ["function ", "class ", "def ", "export ", "const ", "let ", "var ", "import ", "return", "if ", "for ", "while ", "async "]
+    indicators = ["function ", "class ", "def ", "export ", "const ", "let ", "var ", "import ", "return", "if ", "for ", "while ", "async ", "interface ", "type ", "enum ", "=>", "{", "}"]
     if lang == "python":
-        indicators = ["def ", "class ", "import ", "return", "if ", "for ", "while ", "async def"]
+        indicators = ["def ", "class ", "import ", "return", "if ", "for ", "while ", "async def", "lambda", "="]
     return any(kw in text for kw in indicators)
 
 

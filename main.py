@@ -269,6 +269,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
     log_dir = base / ".niuma" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{_dt.date.today().isoformat()}_{task_id}.jsonl"
+    llm.set_log_path(str(log_file))
 
     def _write_log(entry: dict) -> None:
         entry["ts"] = _dt.datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -312,6 +313,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
     else:
         print(f"[{task_id}] 编译 | Compiling...")
     try:
+        llm.set_meta({"role": "compiler", "task_id": task_id})
         dag = compiler.compile_task(task_description, verbose=verbose)
     except compiler.CompilationError as e:
         print(f"[{task_id}] X 编译失败 | Compilation failed: {e}")
@@ -345,7 +347,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
             print(f"  节点{i}/{len(dag.nodes)}: {node.node_id} — {node.name}")
         else:
             print(f"[{task_id}] [{i}/{len(dag.nodes)}] {node.node_id} ({node.name[:40]}) ...")
-        nr = worker.execute_node(node, completed_context, verbose=verbose)
+        nr = worker.execute_node(node, completed_context, task_id=task_id, verbose=verbose)
         node_results.append(nr)
 
         if nr.status == NodeStatus.PASSED:
@@ -376,6 +378,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
         else:
             print(f"[{task_id}] 审核 | Reviewing (第{review_round}轮 | round {review_round}/3)...")
         t_rev = time.time()
+        llm.set_meta({"role": "reviewer", "task_id": task_id})
         rv = reviewer.review(task_description, dag, node_results, verbose=verbose)
 
         # 强模型提交审核结论到 git
@@ -395,7 +398,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
         for node in dag.topological_order():
             if node.node_id in rv.failed_nodes:
                 print(f"    重做 | retry: {node.node_id}...")
-                nr = worker.execute_node(node, completed_context, review_feedback=rv.suggestions, verbose=verbose)
+                nr = worker.execute_node(node, completed_context, task_id=task_id, review_feedback=rv.suggestions, verbose=verbose)
                 for j, old in enumerate(node_results):
                     if old.node_id == node.node_id:
                         node_results[j] = nr
@@ -432,6 +435,20 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
         print(f"[{task_id}]   分支 {branch} 保留供检查 | Branch kept for inspection")
 
     _write_log({"role": "pipeline", "action": "done", "passed": review_passes, "total_s": round(total_time, 1), "log_file": str(log_file)})
+
+    # 写任务汇总
+    summary = {
+        "task_id": task_id,
+        "passed": review_passes,
+        "total_s": round(total_time, 1),
+        "strong_model": get_model_config("strong")["model"],
+        "weak_model": get_model_config("weak")["model"],
+        "nodes_total": len(dag.nodes),
+        "nodes_passed": passed_count,
+        "node_iterations": {nr.node_id: nr.iteration_count for nr in node_results},
+    }
+    summary_path = log_file.parent / f"{log_file.stem}_summary.json"
+    summary_path.write_text(_json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     _llm.set_log_callback(None)
     return review_passes
 
