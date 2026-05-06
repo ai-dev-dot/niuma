@@ -83,10 +83,7 @@ history 按时间顺序追加，compile 阶段将完整 history 作为上下文�
 
 ### 产物保存
 
-用户确认需求摘要后，两个产物落盘：
-
-1. **`.niuma/requirement.md`** — 强模型 commit，和 `.niuma/review.md` 并列。Git 菜单中可见。
-2. **内部 `.tsk` 文件** — 保存确认后的需求描述，供后续复用或命令行调用。用户不需要知道它存在。
+用户确认需求摘要后，强模型 commit `.niuma/requirement.md`（和 `.niuma/review.md`、`.niuma/dag.json` 并列）。这一份文件既是人类可读的需求确认记录，也是编译器的输入。
 
 ### TUI 交互示例
 
