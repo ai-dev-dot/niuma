@@ -325,19 +325,16 @@ def _project_menu(project: dict) -> None:
                 print(f"  (无任务文件 | no task files — 在 {tasks_dir}/ 下创建 .tsk 文件)")
             print()
 
-        print("  1. 运行任务 | Run Task")
-        print("  2. 新建任务文件 | New Task File")
-        print("  3. Git 提交记录 | Git Commits")
+        print("  1. 新建任务 | New Task")
+        print("  2. Git 提交记录 | Git Commits")
         print("  D. 删除项目 | Delete Project")
-        print("  4. 返回 | Back")
+        print("  3. 返回 | Back")
         print()
 
-        choice = _ask("请选择 | Select [1-4]", "4").lower()
+        choice = _ask("请选择 | Select [1-3]", "3").lower()
         if choice == "1":
-            _run_task_in_project(project)
+            _clarify_and_run(project)
         elif choice == "2":
-            _create_task_file(project)
-        elif choice == "3":
             _git_menu(project)
         elif choice == "d":
             confirm = _ask(f"  确认删除 '{project['name']}'? (输入项目名确认 | type name to confirm)")
@@ -351,7 +348,7 @@ def _project_menu(project: dict) -> None:
             else:
                 print("  已取消 | Cancelled.")
                 _wait()
-        elif choice == "4":
+        elif choice == "3":
             return
 
 
@@ -400,6 +397,112 @@ def _git_menu(project: dict) -> None:
             result = project_manager.push_branch(proj_path, target, proxy=proxy)
             print(result if result else "  [OK] Push 完成 | Done")
             _wait()
+
+
+def _clarify_and_run(project: dict) -> None:
+    """对话式需求澄清 + 运行。"""
+    import compiler as _compiler
+    import main as _main
+    import project_manager as _pm
+    from config import get_retry_limits
+
+    proj_path = _pm.get_project_path(project["name"])
+    if not proj_path:
+        print(f"  [!!] 项目路径不存在 | Project path not found")
+        _wait()
+        return
+
+    _clear()
+    _title(f"新建任务 | New Task — {project['name']}")
+    print("  请描述你想实现的功能（自然语言）:")
+    print()
+
+    initial = _ask_text("  > ")
+    if not initial:
+        return
+
+    _clear()
+    _title(f"需求澄清 | Requirement Clarification — {project['name']}")
+    preview = initial[:100] + ("..." if len(initial) > 100 else "")
+    print(f"  你的描述: {preview}")
+    print()
+    print("  [强模型] 正在分析需求...")
+
+    history = [{"role": "user", "content": initial}]
+    limits = get_retry_limits()
+    max_rounds = limits["clarify_rounds"]
+
+    resp = None
+    for round_num in range(1, max_rounds + 1):
+        try:
+            resp = _compiler.clarify_step(history)
+        except Exception as e:
+            print(f"\n  [!!] 强模型调用失败: {e}")
+            print("  是否直接用当前描述开始编译？(Y/n)")
+            if _ask("  > ", "Y").lower() in ("y", "yes", ""):
+                break
+            _wait()
+            return
+
+        if resp.get("type") == "summary" or "summary" in resp:
+            summary = resp.get("summary", str(resp))
+            _clear()
+            _title(f"需求确认 | Confirmation — {project['name']}")
+            print(f"  [强模型] 已整理需求确认：")
+            print()
+            for line in summary.strip().split("\n"):
+                print(f"  {line}")
+            print()
+            confirm = _ask("  确认无误？(Y/n，n=继续澄清)", "Y").lower()
+            if confirm in ("y", "yes", ""):
+                break
+            else:
+                history.append({"role": "user", "content": "还需要继续澄清，请多问几个问题"})
+                continue
+
+        question = resp.get("question", str(resp))
+        print(f"\n  Q: {question}")
+        answer = _ask("  > ")
+        if not answer:
+            return
+        history.append({"role": "assistant", "content": f"Q: {question}"})
+        history.append({"role": "user", "content": answer})
+    else:
+        print(f"\n  已达最大澄清轮数 ({max_rounds})，使用当前结果编译。")
+
+    final_summary = resp.get("summary", initial) if resp else initial
+
+    print()
+    print(f"  ✓ 需求已确认，开始编译...")
+    print()
+
+    # 调用 pipeline
+    orig_dir = os.getcwd()
+    try:
+        os.chdir(str(proj_path))
+        success = _main.start_pipeline(str(proj_path), final_summary, verbose=True)
+    except Exception as e:
+        os.chdir(orig_dir)
+        print(f"  [!!] {e}")
+        _wait()
+        return
+
+    # 显示 git 状态
+    import project_manager as __pm
+    current_branch = __pm.get_current_branch(proj_path)
+    branches = __pm.list_task_branches(proj_path)
+    os.chdir(orig_dir)
+
+    print()
+    if success:
+        print(f"  [OK] 分支 {current_branch} 就绪，审阅后 push")
+        print(f"  审阅: cd {proj_path} && git log --oneline {current_branch}")
+        if branches:
+            print(f"  niuma 任务分支: {', '.join(branches)}")
+    else:
+        print(f"  [!!] 分支 {current_branch} 保留供检查")
+    print()
+    _wait()
 
 
 def _run_task_in_project(project: dict) -> None:
