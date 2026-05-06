@@ -465,6 +465,9 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
     return review_passes
 
 
+start_pipeline = run_task  # cli.py uses this name
+
+
 # ═══════════════════════════════════════════════════════════════
 # run: 真实执行（CLI 入口 — 向后兼容）
 # ═══════════════════════════════════════════════════════════════

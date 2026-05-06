@@ -394,8 +394,11 @@ def _git_menu(project: dict) -> None:
                 print(f"  当前不在 niuma 分支，将 push: {target}")
             proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
             print(f"  Pushing {target}...")
-            result = project_manager.push_branch(proj_path, target, proxy=proxy)
-            print(result if result else "  [OK] Push 完成 | Done")
+            ok, msg = project_manager.push_branch(proj_path, target, proxy=proxy)
+            if ok:
+                print(f"  [OK] Push 完成 | Done — {msg}" if msg else "  [OK] Push 完成 | Done")
+            else:
+                print(f"  [!!] Push 失败 | Failed: {msg}")
             _wait()
 
 
@@ -480,7 +483,7 @@ def _clarify_and_run(project: dict) -> None:
     orig_dir = os.getcwd()
     try:
         os.chdir(str(proj_path))
-        success = _main.start_pipeline(str(proj_path), final_summary, verbose=True)
+        success = _main.start_pipeline(final_summary, str(proj_path), verbose=True)
     except Exception as e:
         os.chdir(orig_dir)
         print(f"  [!!] {e}")

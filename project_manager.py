@@ -248,13 +248,20 @@ def get_niuma_log(repo_path: str | Path, max_count: int = 20) -> list[str]:
     return output.splitlines()
 
 
-def push_branch(repo_path: str | Path, branch: str, proxy: str = "") -> str:
-    """Push 指定分支到 origin。返回输出或错误。"""
+def push_branch(repo_path: str | Path, branch: str, proxy: str = "") -> tuple[bool, str]:
+    """Push 指定分支到 origin。返回 (成功与否, 输出信息)。"""
     if proxy:
         cmd = ["git", "-c", f"http.proxy={proxy}", "-c", f"https.proxy={proxy}", "push", "origin", branch]
     else:
         cmd = ["git", "push", "origin", branch]
-    return git_run(repo_path, cmd, check=False)
+    result = subprocess.run(
+        ["git"] + cmd,
+        cwd=str(repo_path),
+        capture_output=True,
+        text=True,
+    )
+    output = result.stderr.strip() or result.stdout.strip()
+    return result.returncode == 0, output
 
 
 def get_all_branches_log(repo_path: str | Path) -> str:
