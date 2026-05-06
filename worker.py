@@ -3,6 +3,9 @@
 import json
 import time
 
+import config as _cfg
+from pathlib import Path
+
 import llm
 import sandbox
 from models import DAGNode, NodeResult, NodeStatus, SandboxResult
@@ -104,7 +107,9 @@ def _generate_and_extract(node: DAGNode, context: dict[str, str], previous: Node
     lang = node.signature.language
     code_fence = "python" if lang == "python" else "typescript"
 
-    for retry in range(3):
+    limits = _cfg.get_retry_limits()
+    max_tries = limits["worker_code_extraction"]
+    for retry in range(max_tries):
         resp = _call_weak_model(node, context, previous, review_feedback)
         code = _extract_code(resp.content)
 
@@ -113,7 +118,7 @@ def _generate_and_extract(node: DAGNode, context: dict[str, str], previous: Node
 
         if verbose and retry > 0:
             print(f"    [弱模型] 第{retry}次提取失败，重新请求...")
-        if retry < 2:
+        if retry < max_tries - 1:
             review_feedback = (
                 f"你上一次的回复格式不正确——包含了太多解释文字，或者代码没有正确包裹在 "
                 f"```{code_fence} 代码块中。\n"
@@ -262,3 +267,28 @@ def commit_node(node: DAGNode, result: NodeResult, repo_path: str) -> str:
         f"worker: implement {node.node_id} ({result.iteration_count} iterations)",
     )
     return filepath
+
+
+def _read_dag_from_file(repo_path: str) -> "DAG | None":
+    """从文件系统读取 dag.json 并解析为 DAG 对象。"""
+    import json as _json
+    from compiler import _parse_dag
+    dag_file = Path(repo_path) / ".niuma" / "dag.json"
+    if not dag_file.exists():
+        return None
+    try:
+        data = _json.loads(dag_file.read_text(encoding="utf-8"))
+        return _parse_dag(_json.dumps(data))
+    except (json.JSONDecodeError, KeyError, Exception):
+        return None
+
+
+def _read_completed_code(repo_path: str, dag: "DAG") -> dict[str, str]:
+    """读取已通过节点的代码，返回 {node_id: code} 的上下文。"""
+    context: dict[str, str] = {}
+    for node in dag.nodes:
+        ext = "ts" if node.signature.language == "typescript" else "py"
+        code_file = Path(repo_path) / "src" / f"{node.node_id}.{ext}"
+        if code_file.exists():
+            context[node.node_id] = code_file.read_text(encoding="utf-8")
+    return context
