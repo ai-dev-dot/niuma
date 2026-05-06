@@ -3,18 +3,65 @@
 import json
 import re
 
+import config as _cfg
+from pathlib import Path
+
 import llm
 from models import DAG, Contract, DAGNode, FunctionSignature
 
 
+CLARIFY_SYSTEM = """你是一个需求分析器。用户描述了想做的功能。你的任务是帮他把需求澄清到足够编译的程度。
+
+规则：
+- 每次只问一个最关键的问题。不要一次问多个。
+- 如果用户表示"够了"、"开始吧"、"不用再问了"之类的意图，不要再追问，直接输出需求摘要。
+- 如果需求已经足够清晰，直接输出需求摘要。
+
+输出格式（严格的 JSON，不要加任何其他文字）：
+- 如果还有疑问：{"type": "question", "question": "你的问题"}
+- 如果已清晰：{"type": "summary", "summary": "结构化需求描述..."}
+
+问题应该聚焦在：功能边界、数据类型、约束条件、使用场景。"""
+
+
+def clarify_step(history: list[dict]) -> dict:
+    """调用强模型，根据对话历史返回下一步: {"type": "question", "question": "..."}
+    或 {"type": "summary", "summary": "..."}。"""
+    messages = [{"role": "system", "content": CLARIFY_SYSTEM}]
+    for entry in history:
+        role = entry["role"]
+        content = entry["content"]
+        messages.append({"role": role, "content": content})
+
+    resp = llm.call_strong_messages(messages, max_tokens=800)
+
+    # 解析 JSON 响应
+    text = resp.content.strip()
+    text = re.sub(r'```(?:json)?\s*', '', text)
+    text = text.strip()
+    m = re.search(r'\{[\s\S]*\}', text)
+    if m:
+        text = m.group(0)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # 容错：如果模型返回的不是纯 JSON
+        if any(kw in text for kw in ["确认", "摘要", "总结", "SUMMARY", "summary"]):
+            return {"type": "summary", "summary": text}
+        return {"type": "question", "question": text.strip().split("\n")[0]}
+
+
 def compile_task(task_description: str, verbose: bool = False) -> DAG:
-    """将任务描述编译为 DAG。强模型调用 → JSON 解析 → Schema 校验 → 重试。"""
+    """将任务描述编译为 DAG。强模型调用 -> JSON 解析 -> Schema 校验 -> 重试。"""
+    limits = _cfg.get_retry_limits()
+    max_tries = limits["compiler_schema_validation"]
+
     if verbose:
         print("  [强模型] 正在分析任务并分解为 DAG...")
 
     dag_json_str = _call_compiler(task_description)
 
-    for attempt in range(2):
+    for attempt in range(max_tries):
         dag = _parse_dag(dag_json_str)
         errors = _validate_dag(dag)
         if not errors:
@@ -25,10 +72,20 @@ def compile_task(task_description: str, verbose: bool = False) -> DAG:
                     print(f"    节点{i}: {node.node_id} — {node.name}{deps}")
                     print(f"      语言: {node.signature.language}, 最多{node.max_iterations}轮迭代")
             return dag
-        if attempt < 1:
+        if attempt < max_tries - 1:
             dag_json_str = _call_compiler_retry(task_description, dag_json_str, errors)
 
-    raise CompilationError(f"DAG Schema 校验失败（2 次重试后）: {errors}")
+    raise CompilationError(f"DAG Schema 校验失败（{max_tries} 次重试后）: {errors}")
+
+
+def compile_from_git(repo_path: str, task_id: str, verbose: bool = False) -> DAG:
+    """从 git 读取 requirement.md，编译为 DAG，commit dag.json 到 git。"""
+    req_path = Path(repo_path) / ".niuma" / "requirement.md"
+    if not req_path.exists():
+        raise FileNotFoundError(f"requirement.md 不存在: {req_path}")
+
+    requirement = req_path.read_text(encoding="utf-8")
+    return compile_task(requirement, verbose=verbose)
 
 
 def _call_compiler(task_description: str) -> str:
