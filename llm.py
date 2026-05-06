@@ -10,6 +10,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import config as _cfg
+
 
 @dataclass
 class LLMResponse:
@@ -67,7 +69,8 @@ def call(
     temperature: float = 0.2,
     api_key: str = "",
     base_url: str = "",
-    max_retries: int = 3,
+    max_retries: int | None = None,
+    messages: list[dict] | None = None,
     log_callback=None,
 ) -> LLMResponse:
     """调用 LLM API，含指数退避重试。每次调用自动写全量日志到 _log_path。"""
@@ -85,10 +88,15 @@ def call(
 
     url = f"{base_url.rstrip('/')}/chat/completions"
 
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+    if max_retries is None:
+        limits = _cfg.get_retry_limits()
+        max_retries = limits["llm_api_max_retries"]
+
+    if messages is None:
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ]
 
     body_data: dict = {
         "model": model,
@@ -229,6 +237,19 @@ def call_weak(prompt: str, **kwargs) -> LLMResponse:
         temperature=kwargs.pop("temperature", 0.3),
         system=kwargs.pop("system", ""),
         **kwargs,
+    )
+
+
+def call_strong_messages(messages: list[dict], max_tokens: int = 0) -> "LLMResponse":
+    """直接传 messages 调用强模型（用于对话式需求澄清等需要完整消息历史的场景）。"""
+    cfg = _cfg.get_model_config("strong")
+    return call(
+        prompt="",
+        model=cfg["model"],
+        api_key=cfg["api_key"],
+        base_url=cfg["base_url"],
+        max_tokens=max_tokens,
+        messages=messages,
     )
 
 
