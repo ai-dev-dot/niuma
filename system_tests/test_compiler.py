@@ -60,14 +60,21 @@ class TestCompiler:
 
     def test_invalid_json_exhausts_retries(self):
         invalid = '{"nodes": [{"node_id": "x"}]}'
-        with patch.object(llm, "call_strong") as mock_call:
-            mock_call.side_effect = [
-                llm.LLMResponse(content=invalid, input_tokens=100, output_tokens=50),
-                llm.LLMResponse(content=invalid, input_tokens=100, output_tokens=50),
-                llm.LLMResponse(content=invalid, input_tokens=100, output_tokens=50),
-            ]
-            with pytest.raises(compiler.CompilationError, match="Schema 校验失败"):
-                compiler.compile_task("实现 add 函数")
+        with patch('compiler._cfg.get_retry_limits', return_value={
+            "compiler_schema_validation": 2,
+            "clarify_rounds": 20,
+            "worker_code_extraction": 5,
+            "reviewer_rounds": 5,
+            "llm_api_max_retries": 3,
+        }):
+            with patch.object(llm, "call_strong") as mock_call:
+                mock_call.side_effect = [
+                    llm.LLMResponse(content=invalid, input_tokens=100, output_tokens=50),
+                    llm.LLMResponse(content=invalid, input_tokens=100, output_tokens=50),
+                    llm.LLMResponse(content=invalid, input_tokens=100, output_tokens=50),
+                ]
+                with pytest.raises(compiler.CompilationError, match="Schema 校验失败"):
+                    compiler.compile_task("实现 add 函数")
 
     def test_json_with_markdown_wrapper(self):
         wrapped = f"好的，这是 DAG JSON:\n```json\n{VALID_DAG_JSON}\n```\n希望满足要求。"
@@ -85,24 +92,38 @@ class TestCompiler:
                 {"node_id": "b", "name": "B", "signature": {"language": "python", "function_name": "fb", "params": [], "return_type": "void", "allowed_imports": [], "methods": []}, "contract": {}, "test_skeleton": "def test_b(): pass", "dependencies": ["a"]},
             ]
         })
-        with patch.object(llm, "call_strong") as mock_call:
-            mock_call.side_effect = [
-                llm.LLMResponse(content=cycle_json, input_tokens=100, output_tokens=100),
-                llm.LLMResponse(content=cycle_json, input_tokens=100, output_tokens=100),
-                llm.LLMResponse(content=cycle_json, input_tokens=100, output_tokens=100),
-            ]
-            with pytest.raises(compiler.CompilationError):
-                compiler.compile_task("实现循环依赖")
+        with patch('compiler._cfg.get_retry_limits', return_value={
+            "compiler_schema_validation": 2,
+            "clarify_rounds": 20,
+            "worker_code_extraction": 5,
+            "reviewer_rounds": 5,
+            "llm_api_max_retries": 3,
+        }):
+            with patch.object(llm, "call_strong") as mock_call:
+                mock_call.side_effect = [
+                    llm.LLMResponse(content=cycle_json, input_tokens=100, output_tokens=100),
+                    llm.LLMResponse(content=cycle_json, input_tokens=100, output_tokens=100),
+                    llm.LLMResponse(content=cycle_json, input_tokens=100, output_tokens=100),
+                ]
+                with pytest.raises(compiler.CompilationError):
+                    compiler.compile_task("实现循环依赖")
 
     def test_empty_nodes_rejected(self):
-        with patch.object(llm, "call_strong") as mock_call:
-            mock_call.side_effect = [
-                llm.LLMResponse(content='{"nodes": []}', input_tokens=50, output_tokens=20),
-                llm.LLMResponse(content='{"nodes": []}', input_tokens=50, output_tokens=20),
-                llm.LLMResponse(content='{"nodes": []}', input_tokens=50, output_tokens=20),
-            ]
-            with pytest.raises(compiler.CompilationError):
-                compiler.compile_task("空的")
+        with patch('compiler._cfg.get_retry_limits', return_value={
+            "compiler_schema_validation": 2,
+            "clarify_rounds": 20,
+            "worker_code_extraction": 5,
+            "reviewer_rounds": 5,
+            "llm_api_max_retries": 3,
+        }):
+            with patch.object(llm, "call_strong") as mock_call:
+                mock_call.side_effect = [
+                    llm.LLMResponse(content='{"nodes": []}', input_tokens=50, output_tokens=20),
+                    llm.LLMResponse(content='{"nodes": []}', input_tokens=50, output_tokens=20),
+                    llm.LLMResponse(content='{"nodes": []}', input_tokens=50, output_tokens=20),
+                ]
+                with pytest.raises(compiler.CompilationError):
+                    compiler.compile_task("空的")
 
 
 import pytest
