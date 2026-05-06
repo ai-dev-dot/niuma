@@ -2,7 +2,7 @@
 
 ## 现状
 
-用户通过 TUI 选择 `.tsk` 文件，文件内容直接传给强模型编译 DAG。用户需要知道 `.tsk` 文件的存在，且需求质量完全依赖用户写需求的能力。
+用户通过 TUI 输入自然语言任务描述，直接传给强模型编译 DAG。需求质量完全依赖用户写需求的能力，没有需求澄清环节。
 
 ## 目标
 
@@ -124,15 +124,14 @@ history 按时间顺序追加，compile 阶段将完整 history 作为上下文�
 ### 向后兼容
 
 - 命令行 `python main.py --inline "..."` 路径保持不变，跳过澄清阶段直接编译
-- `.tsk` 文件保留，TUI 在"运行已有任务"时可以选（但"新建任务"改为对话式）
-- TUI 项目菜单中"运行任务"（选项 1）改为："1. 新建任务 | New Task（对话式）" + "2. 运行已有任务 | Run Existing Task"
+- TUI 项目菜单中"运行任务"选项直接进入对话式需求澄清
 
 ### 改动清单
 
 | 文件 | 改动 |
 |------|------|
 | `compiler.py` | 新增 `clarify_step(history)` — 调用强模型，解析返回 JSON，返回 question 或 summary |
-| `cli.py` | 新增 `_clarify_and_run(project)` — 对话循环 + 确认 + 调用 main.run_task；原 `_run_task_in_project` 改为运行已有 `.tsk`；调整项目菜单选项 |
+| `cli.py` | 新增 `_clarify_and_run(project)` — 对话循环 + 确认 + 调用 main.run_task；替换原来的选 `.tsk` 文件流程；调整项目菜单 |
 | `project_manager.py` | 新增 `commit_file` 调用写 `.niuma/requirement.md`（已有，直接复用）|
 | `models.py` | 可选加 `ClarifyResponse` 数据类（`type: Literal["question","summary"]` + 内容字段），也可直接用 dict |
 
