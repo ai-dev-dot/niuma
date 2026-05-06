@@ -256,7 +256,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
     Each handoff is recorded as a git commit on a task branch.
     返回 True 表示任务成功完成。"""
     import project_manager as _pm
-    from config import get_model_config
+    from config import get_model_config, get_retry_limits
 
     base = Path(project_path) if project_path else _PROJECT_ROOT
     task_id = str(uuid.uuid4())[:8]
@@ -305,6 +305,15 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
     except RuntimeError as e:
         print(f"[{task_id}] X 创建分支失败 | Branch creation failed: {e}")
         return False
+
+    # —— 写需求文档 ——
+    _pm.commit_file(
+        str(base), ".niuma/requirement.md", task_description,
+        _pm.GIT_AUTHOR_COMPILER, f"cli: requirement confirmed for {task_id}",
+    )
+    _write_log({"role": "cli", "action": "requirement_confirmed"})
+    if verbose:
+        print(f"  >>> git commit: .niuma/requirement.md ({_pm.GIT_AUTHOR_COMPILER[0]} -> Strong Model)")
 
     # —— 编译 | Compile ——
     t0 = time.time()
@@ -373,11 +382,13 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
         print(f"  ╔═ STEP 3: 强模型审核 | Review ═╗")
 
     review_passes = False
-    for review_round in range(1, 4):
+    limits = get_retry_limits()
+    max_review_rounds = limits["reviewer_rounds"]
+    for review_round in range(1, max_review_rounds + 1):
         if verbose:
-            print(f"  审核轮次 {review_round}/3...")
+            print(f"  审核轮次 {review_round}/{max_review_rounds}...")
         else:
-            print(f"[{task_id}] 审核 | Reviewing (第{review_round}轮 | round {review_round}/3)...")
+            print(f"[{task_id}] 审核 | Reviewing (第{review_round}轮 | round {review_round}/{max_review_rounds})...")
         t_rev = time.time()
         _llm.set_meta({"role": "reviewer", "task_id": task_id})
         rv = reviewer.review(task_description, dag, node_results, verbose=verbose)
@@ -432,7 +443,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
         print(f"[{task_id}]   git checkout {branch} && git log --oneline")
         print(f"[{task_id}] 总耗时 | Total: {total_time:.1f}s")
     else:
-        print(f"[{task_id}] X 审核 3 轮未通过 | Review failed after 3 rounds ({total_time:.1f}s)")
+        print(f"[{task_id}] X 审核 {max_review_rounds} 轮未通过 | Review failed after {max_review_rounds} rounds ({total_time:.1f}s)")
         print(f"[{task_id}]   分支 {branch} 保留供检查 | Branch kept for inspection")
 
     _write_log({"role": "pipeline", "action": "done", "passed": review_passes, "total_s": round(total_time, 1), "log_file": str(log_file)})
