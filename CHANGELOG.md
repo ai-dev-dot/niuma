@@ -21,6 +21,9 @@
 - **LLM timeout to 5 minutes:** increased from 2 minutes to handle slow models like MiniMax.
 - **Full API logging:** every LLM call is recorded in `.niuma/logs/` with complete
   prompts and responses for debugging.
+- **Human-readable git commits:** requirement and review commits now include task
+  summaries instead of opaque IDs. `review.md` always shows the model's full review
+  text, not just PASS/FAIL. Git log tells the whole story at a glance.
 
 ## 0.2.0 (2026-05-05)
 

@@ -118,7 +118,7 @@ niuma/
   requirements.txt      # Python dependencies
   niuma                 # One-command launcher (bash)
   niuma.bat             # One-command launcher (Windows)
-  tasks/                # Example task descriptions (.tsk files)
+  tasks/                # Example task descriptions (internal storage)
   system_tests/         # pytest suite (29 tests)
   docs/                 # Design docs and test plans
 ```

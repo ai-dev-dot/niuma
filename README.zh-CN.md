@@ -120,7 +120,7 @@ niuma/
   requirements.txt      # Python 依赖
   niuma                 # 一键启动脚本（bash）
   niuma.bat             # 一键启动脚本（Windows）
-  tasks/                # 示例任务描述文件（.tsk）
+  tasks/                # 示例任务描述文件（内部存储，用户无需关心）
   system_tests/         # pytest 测试套件（29 个测试）
   docs/                 # 设计文档 + 测试计划
 ```
