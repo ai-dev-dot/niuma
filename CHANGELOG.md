@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0 (2026-05-06)
+
+### Core Engine
+
+- **Conversational requirement clarification:** describe what you want in plain language.
+  The strong model asks one question at a time to nail down the details, then produces a
+  confirmed requirement summary before compiling the DAG.
+- **Git-driven architecture:** components exchange data via git commits, not in-memory
+  objects. Each step reads from git, does its work, commits, and calls the next component.
+  The pipeline is recoverable from any crash — git is the single source of truth.
+- **Configurable retry limits:** all hardcoded retry counts moved to `~/.niuma/config.json`
+  under `retry_limits`. Tune `compiler_schema_validation`, `reviewer_rounds`,
+  `worker_code_extraction`, `clarify_rounds`, and `llm_api_max_retries` to match your models.
+
+### User Experience
+
+- **No more .tsk files:** you no longer write task files by hand. Start a new task from the
+  TUI, describe what you want, and let the strong model clarify through conversation.
+- **LLM timeout to 5 minutes:** increased from 2 minutes to handle slow models like MiniMax.
+- **Full API logging:** every LLM call is recorded in `.niuma/logs/` with complete
+  prompts and responses for debugging.
+
 ## 0.2.0 (2026-05-05)
 
 ### Core Engine

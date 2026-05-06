@@ -132,8 +132,9 @@ don't need to change.
 
 ## Status
 
-Prototype — 29 system tests passing. The compiler → worker → reviewer loop is functional with
-mocked API calls. To run end-to-end with real LLMs, run `./niuma` → Quick Setup and pick a provider.
+v0.3.0 — 29 system tests passing. Conversational requirement clarification, git-driven
+architecture, and configurable retry limits are all implemented. The compiler → worker → reviewer
+loop runs end-to-end with real LLMs. `./niuma` → configure models → new task to get started.
 
 ## Docs
 

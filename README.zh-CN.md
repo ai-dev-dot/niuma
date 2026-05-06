@@ -132,8 +132,8 @@ DAG 节点的 `signature.language` 字段决定用哪个运行时。加新语言
 
 ## 当前状态
 
-原型阶段——29 个系统测试全部通过。compiler → worker → reviewer 闭环在用 mock API 的情况下跑通。
-要用真实 LLM 端到端运行，运行 `./niuma` → 快速配置，选一家供应商即可。
+v0.3.0 — 29 个系统测试全部通过。对话式需求澄清、Git 驱动架构、可配置重试次数均已实现。
+compiler → worker → reviewer 闭环支持真实 LLM 端到端运行。`./niuma` → 配置模型 → 新建任务即可开始。
 
 ## 设计决策记录
 
