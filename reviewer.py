@@ -113,7 +113,7 @@ def _parse_review(raw: str, node_results: list[NodeResult]) -> ReviewResult:
     )
 
 
-def commit_review(result: ReviewResult, repo_path: str, task_id: str) -> str:
+def commit_review(result: ReviewResult, repo_path: str, task_id: str, task_desc: str = "") -> str:
     """将审核结论写入 .niuma/review.md 并 git commit。返回文件路径。"""
     import project_manager as _pm
 
@@ -125,14 +125,14 @@ def commit_review(result: ReviewResult, repo_path: str, task_id: str) -> str:
         content += f"## Failed Nodes\n\n"
         for nid in result.failed_nodes:
             content += f"- {nid}\n"
-        content += f"\n## Suggestions\n\n{result.suggestions}\n"
 
+    summary = task_desc.strip().replace("\n", " ")[:60] if task_desc else task_id
     _pm.commit_file(
         repo_path,
         ".niuma/review.md",
         content,
         _pm.GIT_AUTHOR_REVIEWER,
-        f"reviewer: {status} for task {task_id}",
+        f"review: {status} — {summary}",
     )
     return str(Path(repo_path) / ".niuma" / "review.md")
 

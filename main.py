@@ -395,7 +395,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
         rv = reviewer.review(task_description, dag, node_results, verbose=verbose)
 
         # 强模型提交审核结论到 git
-        reviewer.commit_review(rv, str(base), task_id)
+        reviewer.commit_review(rv, str(base), task_id, task_description)
         verdict = "PASS" if rv.passed else "FAIL"
         print(f"    >>> git commit: .niuma/review.md ({_pm.GIT_AUTHOR_REVIEWER[0]} → Strong Model — {verdict})")
 
