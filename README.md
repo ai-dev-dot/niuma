@@ -135,6 +135,11 @@ don't need to change.
 Prototype — 29 system tests passing. The compiler → worker → reviewer loop is functional with
 mocked API calls. To run end-to-end with real LLMs, run `./niuma` → Quick Setup and pick a provider.
 
+## Docs
+
+- [Design doc](docs/design-20260505.md) — DAG node specification, fault recovery, prompt templates, architecture review
+- [User guide](docs/user-guide.md) — complete workflow, project management, Git-based review
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
