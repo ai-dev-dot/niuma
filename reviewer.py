@@ -109,7 +109,7 @@ def _parse_review(raw: str, node_results: list[NodeResult]) -> ReviewResult:
     return ReviewResult(
         passed=is_pass,
         failed_nodes=list(set(failed_nodes)) if failed_nodes else [],
-        suggestions=text if not is_pass else "",
+        suggestions=text,
     )
 
 
@@ -119,6 +119,8 @@ def commit_review(result: ReviewResult, repo_path: str, task_id: str) -> str:
 
     status = "PASS" if result.passed else "FAIL"
     content = f"# Review: {task_id}\n\n**Verdict:** {status}\n\n"
+    if result.suggestions:
+        content += f"{result.suggestions}\n\n"
     if not result.passed:
         content += f"## Failed Nodes\n\n"
         for nid in result.failed_nodes:
