@@ -20,6 +20,13 @@ DEFAULT_CONFIG = {
         "base_url": "https://api.openai.com/v1",
         "model": "",
     },
+    "retry_limits": {
+        "clarify_rounds": 20,
+        "compiler_schema_validation": 5,
+        "worker_code_extraction": 5,
+        "reviewer_rounds": 5,
+        "llm_api_max_retries": 3,
+    },
 }
 
 # 供应商预设 —— 用户只需选供应商+填API Key，base_url和模型列表自动补全
@@ -149,6 +156,14 @@ def get_model_config(which: str) -> dict:
         "base_url": model.get("base_url", "https://api.openai.com/v1") or os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
         "model": model.get("model", "") or os.getenv(f"{which.upper()}_MODEL", ""),
     }
+
+
+def get_retry_limits() -> dict:
+    """获取所有重试/轮次限制配置，缺失字段使用默认值。"""
+    config = get_config()
+    defaults = DEFAULT_CONFIG["retry_limits"]
+    limits = config.get("retry_limits", {})
+    return {key: limits.get(key, defaults[key]) for key in defaults}
 
 
 def set_model_config(which: str, api_key: str = "", base_url: str = "", model: str = "") -> None:
