@@ -27,6 +27,7 @@ DEFAULT_CONFIG = {
         "reviewer_rounds": 5,
         "llm_api_max_retries": 3,
         "early_abort_fail_ratio": 0.6,
+        "worker_max_iterations": 5,
     },
 }
 
