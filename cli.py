@@ -321,7 +321,7 @@ def _create_project() -> None:
                 print("  Step 1: 创建 Personal Access Token（如果还没有的话）")
                 print("    → 打开 https://github.com/settings/tokens")
                 print("    → 点击 'Generate new token (classic)'")
-                print("    → 勾选 'repo' 权限（公开仓库选 public_repo 即可）")
+                print("    → 公开仓库勾选 'public_repo'，私有勾选 'repo'")
                 print("    → 生成后复制 token（只显示一次！）")
                 print()
             elif service == "GitLab":
