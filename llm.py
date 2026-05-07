@@ -65,7 +65,7 @@ def call(
     *,
     model: str = "",
     system: str = "",
-    max_tokens: int = 4096,
+    max_tokens: int = 0,
     temperature: float = 0.2,
     api_key: str = "",
     base_url: str = "",
