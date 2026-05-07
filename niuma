@@ -14,9 +14,15 @@ $_PY -m pytest --version >/dev/null 2>&1 || _need_install=1
 
 if [ "$_need_install" -eq 1 ]; then
     echo "  安装依赖... | Installing dependencies..."
-    $_PY -m pip install --break-system-packages -r requirements.txt -q 2>/dev/null || true
+    _install_ok=1
+    $_PY -m pip install --break-system-packages -r requirements.txt -q 2>/dev/null || _install_ok=0
     npm install --silent 2>/dev/null || true
-    echo "  [OK] 就绪 | Ready."
+    if [ "$_install_ok" -eq 0 ]; then
+        echo "  [!!] pip 依赖安装失败 | pip install failed"
+        echo "  手动执行: $_PY -m pip install --break-system-packages -r requirements.txt"
+    else
+        echo "  [OK] 就绪 | Ready."
+    fi
     echo
 fi
 
