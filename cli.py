@@ -569,8 +569,10 @@ def _git_menu(project: dict) -> None:
     idx = 0
     while True:
         _clear()
+        remote = project_manager.git_run(proj_path, ["remote", "get-url", "origin"], check=False)
         title = f"Git — {project['name']}" if zh else f"Git — {project['name']}"
         _title(title)
+        print(f"  Remote: {remote}")
         print(f"  {'当前分支' if zh else 'Branch'}: {current_branch}")
         print(f"  {'-'*45}")
         log_lines = project_manager.get_branch_log(proj_path, current_branch)
@@ -604,8 +606,10 @@ def _git_menu(project: dict) -> None:
     if idx == len(items) - 1:
         return
     elif idx == 0 and current_branch.startswith("niuma"):
+        remote = project_manager.git_run(proj_path, ["remote", "get-url", "origin"], check=False)
+        print(f"  远程仓库: {remote}")
         proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
-        print(f"  Pushing {current_branch}...")
+        print(f"  Pushing {current_branch} → {remote} ...")
         ok, msg = project_manager.push_branch(proj_path, current_branch, proxy=proxy)
         if ok:
             print(f"  [OK] Push 完成" + (f" — {msg}" if msg else ""))
