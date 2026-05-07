@@ -203,12 +203,8 @@ def _compile_check(code: str, lang: str, verbose: bool = False) -> bool:
         except SyntaxError:
             return False
     elif lang == "typescript":
-        result = sandbox.execute(
-            code=code,
-            test_code="",
-            language="typescript",
-        )
-        return result.exit_code == 0
+        # TypeScript 不做编译前检查——Jest 自己会编译，语法错会被沙箱捕获
+        return True
     return True
 
 
