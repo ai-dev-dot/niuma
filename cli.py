@@ -92,55 +92,51 @@ def _main_menu() -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def _config_menu(which: str) -> None:
-    label = "强模型 (编译器/审核器)" if which == "strong" else "弱模型 (代码生成器)"
-    eng = "Strong Model (Compiler/Reviewer)" if which == "strong" else "Weak Model (Code Generator)"
+    zh = config.get_lang() == "zh"
     model_field = "strong_models" if which == "strong" else "weak_models"
 
     while True:
         c = config.get_model_config(which)
-        _clear()
-        _title(f"配置 {label} | Configure {eng}")
-        print(f"  API Key:  {_mask(c['api_key'])}")
-        print(f"  Base URL: {c['base_url']}")
-        print(f"  模型名称: {c['model'] or '(未设置 | not set)'}")
-        print()
-        print("  1. 快速配置（选供应商，仅需填 API Key）| Quick Setup (pick provider)")
-        print("  2. 修改 API Key")
-        print("  3. 修改模型名称")
-        print("  4. 修改 Base URL（高级）")
-        print("  5. 测试连接 | Test Connection")
-        print("  6. 返回 | Back")
-        print()
+        role = "强模型" if which == "strong" else "弱模型"
+        title = f"{role} — {c['model'] or ('未设置' if zh else 'Not set')}"
 
-        choice = _ask("请选择 | Select [1-6]", "6")
-        if choice == "1":
+        items = [
+            "快速配置（选供应商）" if zh else "Quick Setup (pick provider)",
+            "修改 API Key" if zh else "Change API Key",
+            "修改模型名称" if zh else "Change Model Name",
+            "修改 Base URL" if zh else "Change Base URL",
+            "测试连接" if zh else "Test Connection",
+            "返回" if zh else "Back",
+        ]
+        idx = _menu(title, items)
+        if idx is None or idx == 5:
+            return
+        elif idx == 0:
             _provider_setup(which, model_field)
-        elif choice == "2":
+        elif idx == 1:
             new_key = _ask_secret("API Key")
             if new_key:
                 config.set_model_config(which, api_key=new_key)
-                print("  [OK] 已更新 | Updated.")
+                print("  [OK] 已更新" if zh else "  [OK] Updated")
                 _wait()
-        elif choice == "3":
-            new_model = _ask_text("模型名称 | Model Name")
+        elif idx == 2:
+            new_model = _ask_text("模型名称" if zh else "Model Name")
             if new_model:
                 config.set_model_config(which, model=new_model)
-                print("  [OK] 已更新 | Updated.")
+                print("  [OK] 已更新" if zh else "  [OK] Updated")
                 _wait()
-        elif choice == "4":
+        elif idx == 3:
             new_url = _ask_text("Base URL", c["base_url"])
             if new_url:
                 config.set_model_config(which, base_url=new_url)
-                print("  [OK] 已更新 | Updated.")
+                print("  [OK] 已更新" if zh else "  [OK] Updated")
                 _wait()
-        elif choice == "5":
+        elif idx == 4:
             print()
-            print(f"  测试连接中 | Testing connection...")
+            print(f"  测试连接中..." if zh else "  Testing connection...")
             ok, msg = config.test_connection(which)
             print(f"  {'[OK]' if ok else '[!!]'} {msg}")
             _wait()
-        elif choice == "6":
-            return
 
 
 def _provider_setup(which: str, model_field: str) -> None:
