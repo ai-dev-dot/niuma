@@ -498,8 +498,10 @@ def _build_summary(results: list[dict], output_dir: Path) -> dict:
         total_count += d["count"]
         total_tokens += d["tokens_in"] + d["tokens_out"]
         total_latency += d["latency_ms"]
+        # ERR 和 FAIL 都计为失败
+        actual_fail = d["fail"] + d["error"]
         dim_summaries[dim] = {
-            "pass": d["pass"], "fail": d["fail"], "error": d["error"],
+            "pass": d["pass"], "fail": actual_fail, "error": d["error"],
             "total": d["count"],
             "pass_rate": round(d["pass"] / d["count"], 2) if d["count"] else 0,
             "avg_tokens_in": d["tokens_in"] // d["count"] if d["count"] else 0,

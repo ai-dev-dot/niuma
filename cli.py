@@ -266,7 +266,7 @@ def _projects_menu() -> None:
         print(f"  B. 返回 | Back")
         print()
 
-        choice = _ask("请选择 | Select", "B").lower()
+        choice = _ask("请选择 | Select [N=新建/B=返回]", "B").lower()
         if choice == "b":
             return
         elif choice == "n":

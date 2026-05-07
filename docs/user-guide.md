@@ -14,12 +14,13 @@ You're not "using AI to write code" — you're **managing an AI dev team**. Your
 
 ## Prerequisites
 
-- Python 3.10+
-- Node.js (required for TypeScript code generation by the weak model)
+- Python 3.10+（Ubuntu 用 `python3`）
+- Node.js 18+（TypeScript 沙箱需要）
 - Git
-- At least one strong model and one weak model API configured (see below)
+- curl, jq, sqlite3（`sudo apt-get install -y curl jq sqlite3`）
+- 至少配置一个强模型和一个弱模型 API（见下文）
 
-Run `./niuma` (or `./niuma.bat` on Windows) to auto-check the environment on first launch.
+详细安装步骤见 [2GB Ubuntu 安装指南](install-2gb-ubuntu.md)。首次运行 `./niuma` 会自动安装依赖并检查环境。
 
 ---
 
