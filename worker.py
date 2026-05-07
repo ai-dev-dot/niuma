@@ -62,7 +62,8 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], task_id: str 
         _log_sandbox(code, sb_result, node.signature.language, iteration)
 
         if verbose:
-            status = "PASS" if sb_result.passed else "FAIL"
+            G = "\033[32m"; R = "\033[31m"; X = "\033[0m"
+            status = f"{G}PASS{X}" if sb_result.passed else f"{R}FAIL{X}"
             code_preview = code[:80].replace('\n', ' ').strip()
             err_preview = sb_result.stderr[:100].replace('\n', ' ').strip() if not sb_result.passed else ""
             print(f"    第{iteration}轮: [{status}] {code_preview}...")

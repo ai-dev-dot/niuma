@@ -39,18 +39,10 @@ def _check_first_run() -> None:
 
     # 语言选择（仅首次）
     if not config.get_lang():
-        _clear()
-        print("  ==================================================")
-        print("   请选择语言 / Select Language")
-        print("  ==================================================")
+        idx = _menu("请选择语言 / Select Language", ["中文", "English"])
+        config.set_lang("en" if idx == 1 else "zh")
         print()
-        print("  1. 中文")
-        print("  2. English")
-        print()
-        choice = input("  > ").strip()
-        config.set_lang("zh" if choice == "2" else "zh")
-        print()
-        print("  (后续可在主菜单切换语言 | Switch language anytime in main menu)")
+        print("  (后续可在主菜单切换语言 | Switch language anytime)")
         print()
         _wait()
 

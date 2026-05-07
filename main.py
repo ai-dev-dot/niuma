@@ -499,14 +499,15 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
     metrics.record(entry, output_dir=str(base / "outputs"))
     metrics.print_summary(entry)
 
+    G = "\033[32m"; R = "\033[31m"; X = "\033[0m"
     if review_passes:
-        print(f"[{task_id}] [OK] 产物 | Output: {base / 'outputs' / task_id}/")
+        print(f"{G}[{task_id}] PASS{X} 产物: {base / 'outputs' / task_id}/")
         print(f"[{task_id}] 分支 {branch} 就绪，审阅后 merge | Branch ready, review then merge")
         print(f"[{task_id}]   git checkout {branch} && git log --oneline")
-        print(f"[{task_id}] 总耗时 | Total: {total_time:.1f}s")
+        print(f"[{task_id}] 总耗时: {total_time:.1f}s")
     else:
-        print(f"[{task_id}] X 审核 {max_review_rounds} 轮未通过 | Review failed after {max_review_rounds} rounds ({total_time:.1f}s)")
-        print(f"[{task_id}]   分支 {branch} 保留供检查 | Branch kept for inspection")
+        print(f"{R}[{task_id}] FAIL{X} 审核 {max_review_rounds} 轮未通过 ({total_time:.1f}s)")
+        print(f"[{task_id}] 分支 {branch} 保留供检查")
 
     _write_log({"role": "pipeline", "action": "done", "passed": review_passes, "total_s": round(total_time, 1), "log_file": str(log_file)})
 

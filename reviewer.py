@@ -19,10 +19,11 @@ def review(task_description: str, dag: DAG, node_results: list[NodeResult], verb
     rv = _parse_review(resp.content, node_results)
 
     if verbose:
+        G = "\033[32m"; R = "\033[31m"; X = "\033[0m"
         if rv.passed:
-            print(f"  [强模型] 审核结论: PASS — 所有合约满足")
+            print(f"  [强模型] 审核结论: {G}PASS{X} — 所有合约满足")
         else:
-            print(f"  [强模型] 审核结论: FAIL — {len(rv.failed_nodes)} 个节点需修复")
+            print(f"  [强模型] 审核结论: {R}FAIL{X} — {len(rv.failed_nodes)} 个节点需修复")
             if rv.suggestions:
                 print(f"    建议: {rv.suggestions[:200]}")
 
