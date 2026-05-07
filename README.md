@@ -1,29 +1,26 @@
 # 牛马 (Niuma)
 
-> Squeeze every idle hardware resource. Waste not a single token.
+> 闲置的 2GB 云服务器 + 用不完的弱模型 token 套餐 = 一个 AI 开发团队
 
 [English](README.md) | [中文](README.zh-CN.md)
 
 ---
 
-**Niuma** is a compiler-driven AI task orchestration system that runs on resource-constrained hardware.
-A strong LLM acts as a **compiler** — it translates natural language tasks into typed, verifiable DAGs once.
-A fleet of cheap, weak LLMs act as **workers** — they fill in the blanks, run tests, fix failures, and iterate
-until every contract is satisfied. The strong model only re-engages as a **reviewer**, checking the final output.
+我有一台阿里云 2GB Ubuntu 服务器，跑什么都不够，闲置着吃灰。手上有几个便宜的
+弱模型 API token 套餐（MiniMax、DeepSeek），额度用不完。还有一个强模型 token
+套餐，够聪明但贵，舍不得随便烧。
 
-The core idea: strong models are expensive per token but smart. Weak models are cheap enough
-to burn on trial-and-error loops, and their real constraint is the **2 GB deployment environment** —
-not intelligence (they're API-called, Haiku/Flash tier). Niuma splits the work so each model
-does what it's best at, within the physical limits of trash hardware.
+**牛马就是把这些闲置资源拼成一个能干活的东西。** 强模型当架构师——把自然语言需求
+编译成带类型约束的任务 DAG，一次性调用，不再参与执行。弱模型当码农——填空、跑测试、
+看报错、修 bug，反复试错直到全绿。强模型最后当审查员，检查产物。核心原则就一条：
+**每种模型做自己最擅长的事，在垃圾硬件的物理极限内。**
 
-## Why
+## 为什么不是 AutoGPT / MetaGPT / CrewAI
 
-Existing AI agent frameworks (AutoGPT, MetaGPT, CrewAI) assume resource abundance — 16 GB RAM minimum,
-unbounded token budgets, cloud-scale LLMs. Niuma is designed for the opposite: a 2 GB Ubuntu server,
-a leftover weak-model API subscription, and the belief that good things can come from trash hardware.
+现有 AI Agent 框架默认资源富足——最低 16GB 内存，token 预算不设限。牛马反其道而行：
+2GB 服务器、弱模型 API 套餐、以及一个信念——**好货能从垃圾硬件里跑出来**。
 
-**No one in the literature is attempting sub-16 GB multi-agent systems.** Niuma explores the physical
-lower bound of an AI agent orchestration kernel.
+**学术界和工业界没人尝试低于 16GB 的多 Agent 系统。** 牛马探索的是 AI Agent 编排内核的物理下限。
 
 ## Architecture
 
