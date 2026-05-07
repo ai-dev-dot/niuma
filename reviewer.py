@@ -51,27 +51,28 @@ def _collect_node_results(repo_path: str, dag: "DAG") -> list["NodeResult"]:
     return results
 
 
+def _estimate_tokens(text: str) -> int:
+    """粗略估算 token 数：英文约 char/4，中文约 char/2，取平均 char/3。"""
+    return max(1, len(text) // 3)
+
+
 def _build_review_prompt(task_description: str, dag: DAG, node_results: list[NodeResult]) -> str:
-    nodes_text = ""
-    for nr in node_results:
-        nodes_text += f"\n--- 节点: {nr.node_id} (状态: {nr.status.value}, 迭代: {nr.iteration_count}) ---\n"
-        nodes_text += f"代码:\n```\n{nr.generated_code}\n```\n"
-        nodes_text += f"测试输出:\n{nr.test_output}\n"
+    budget = _cfg.get_retry_limits().get("reviewer_prompt_budget", 8000)
 
     dag_text = "\n".join(
         f"- {n.node_id}: {n.name} (依赖: {n.dependencies or '无'})"
         for n in dag.nodes
     )
 
-    return f"""审查所有节点的代码是否满足原始任务和合约规范。
+    # 先算固定部分的 token 开销
+    fixed = f"""审查所有节点的代码是否满足原始任务和合约规范。
 
 原始任务: {task_description}
 
 DAG 结构:
 {dag_text}
 
-各节点输出:
-{nodes_text}
+__NODES_OUTPUT__
 
 审查范围: 合约合规性、签名匹配、节点间数据流连贯性。
 不要审查: 代码风格、性能优化、文档。
@@ -83,6 +84,36 @@ DAG 结构:
 {{"verdict": "FAIL", "score": 3, "failed_nodes": ["<节点ID>", ...], "suggestions": "<违规描述>", "summary": "一句话总结"}}
 
 score 是 1-10 整体质量评分。summary 是一句话（20字内）。"""
+
+    fixed_tokens = _estimate_tokens(fixed)
+    remaining = max(budget - fixed_tokens, 500)
+
+    # 为每个节点分配 token 配额
+    active_nodes = [nr for nr in node_results if nr.generated_code or nr.test_output]
+    per_node = max(200, remaining // max(len(active_nodes), 1))
+
+    nodes_text = ""
+    for nr in node_results:
+        header = f"\n--- 节点: {nr.node_id} (状态: {nr.status.value}, 迭代: {nr.iteration_count}) ---\n"
+        quota = max(100, per_node - _estimate_tokens(header))
+
+        code = nr.generated_code
+        test = nr.test_output
+        half = quota // 2
+
+        if _estimate_tokens(code) > half:
+            code = code[:half * 3] + "\n// ...(截断)..."
+        if _estimate_tokens(test) > half:
+            test = test[:half * 3] + "\n...(截断)..."
+
+        nodes_text += header
+        nodes_text += f"代码:\n```\n{code}\n```\n"
+        nodes_text += f"测试输出:\n{test}\n"
+
+    return fixed.replace(
+        "__NODES_OUTPUT__",
+        nodes_text,
+    )
 
 
 def _parse_review(raw: str, node_results: list[NodeResult]) -> ReviewResult:

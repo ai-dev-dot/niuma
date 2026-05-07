@@ -396,7 +396,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
             print(f"  节点{i}/{len(dag.nodes)}: {node.node_id} — {node.name}")
         else:
             print(f"[{task_id}] [{i}/{len(dag.nodes)}] {node.node_id} ({node.name[:40]}) ...")
-        nr = worker.execute_node(node, completed_context, task_id=task_id, verbose=verbose)
+        nr = worker.execute_node(node, _filter_context(dag, node, completed_context), task_id=task_id, verbose=verbose)
         node_results.append(nr)
 
         if nr.status == NodeStatus.PASSED:
@@ -470,7 +470,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
             if node.node_id in retry_ids:
                 why = "审核失败" if node.node_id in rv.failed_nodes else "上游节点已重做"
                 print(f"    重做 | retry: {node.node_id} ({why})...")
-                nr = worker.execute_node(node, completed_context, task_id=task_id, review_feedback=rv.suggestions, verbose=verbose)
+                nr = worker.execute_node(node, _filter_context(dag, node, completed_context), task_id=task_id, review_feedback=rv.suggestions, verbose=verbose)
                 for j, old in enumerate(node_results):
                     if old.node_id == node.node_id:
                         node_results[j] = nr
@@ -573,6 +573,12 @@ def _run_cmd(cmd: list[str]) -> str:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout
     except Exception:
         return ""
+
+
+def _filter_context(dag: DAG, node: "DAGNode", completed_context: dict[str, str]) -> dict[str, str]:
+    """只返回当前节点传递依赖闭包中已完成的节点代码。"""
+    dep_closure = dag.transitive_deps(node.node_id)
+    return {k: v for k, v in completed_context.items() if k in dep_closure}
 
 
 def _save_output(base: Path, task_id: str, node: "DAGNode", nr: NodeResult) -> None:

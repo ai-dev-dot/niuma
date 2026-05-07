@@ -76,6 +76,42 @@ class TestDAGTopologicalOrder:
             dag.topological_order()
 
 
+class TestDAGTransitiveDeps:
+    def test_single_node_no_deps(self):
+        dag = DAG(nodes=[DAGNode(node_id="a", name="A")])
+        assert dag.transitive_deps("a") == set()
+
+    def test_linear_chain(self):
+        dag = DAG(nodes=[
+            DAGNode(node_id="a", name="A"),
+            DAGNode(node_id="b", name="B", dependencies=["a"]),
+            DAGNode(node_id="c", name="C", dependencies=["b"]),
+        ])
+        assert dag.transitive_deps("c") == {"a", "b"}
+        assert dag.transitive_deps("b") == {"a"}
+        assert dag.transitive_deps("a") == set()
+
+    def test_diamond_deps(self):
+        dag = DAG(nodes=[
+            DAGNode(node_id="a", name="A"),
+            DAGNode(node_id="b", name="B", dependencies=["a"]),
+            DAGNode(node_id="c", name="C", dependencies=["a"]),
+            DAGNode(node_id="d", name="D", dependencies=["b", "c"]),
+        ])
+        assert dag.transitive_deps("d") == {"a", "b", "c"}
+        assert dag.transitive_deps("b") == {"a"}
+
+    def test_subset_not_leaking_siblings(self):
+        """节点 B 只依赖 A，即使 C 也已完成，不应出现在 B 的闭包中"""
+        dag = DAG(nodes=[
+            DAGNode(node_id="a", name="A"),
+            DAGNode(node_id="b", name="B", dependencies=["a"]),
+            DAGNode(node_id="c", name="C", dependencies=["a"]),
+        ])
+        assert dag.transitive_deps("b") == {"a"}
+        assert "c" not in dag.transitive_deps("b")
+
+
 class TestTaskStatus:
     def test_all_statuses_defined(self):
         assert TaskStatus.PENDING.value == "pending"

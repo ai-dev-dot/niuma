@@ -89,6 +89,7 @@ def compile_from_git(repo_path: str, task_id: str, verbose: bool = False) -> DAG
 
 
 def _call_compiler(task_description: str) -> str:
+    max_nodes = _cfg.get_retry_limits().get("max_nodes", 8)
     system = """你是一个任务编译器。将复杂任务分解为多个小的、独立的子任务。
 分解原则：每个节点聚焦一个关注点（如数据结构、调度逻辑、对外接口），但不必过度拆分——
 一个节点可以包含2-4个紧密相关的方法。**关键是把不同性质的职责分开**（比如数据存储和定时调度不要混在同一个节点）。
@@ -108,7 +109,7 @@ JSON 格式: { "nodes": [...] }
 - dependencies: 字符串数组，依赖的 node_id 列表
 
 约束:
-- language="typescript" 或 "python"；allowed_imports 仅标准库；最多5个节点
+- language="typescript" 或 "python"；allowed_imports 仅标准库；最多__MAX_NODES__个节点
 - **不同性质的职责要分开**（数据存储、调度逻辑、对外接口各自成节点）
 - **test_skeleton 只能引用本节点或已声明的依赖节点**（沙箱中只有这些源文件）
 - 2节点示例只是一个参考模式。简单任务可以单节点，复杂任务合理拆分
@@ -164,6 +165,7 @@ JSON 格式: { "nodes": [...] }
   }
 ]}"""
 
+    system = system.replace("__MAX_NODES__", str(max_nodes))
     resp = llm.call_strong(task_description, system=system)
     return resp.content
 
@@ -275,8 +277,9 @@ def _validate_dag(dag: DAG) -> list[str]:
         errors.append("DAG 必须包含至少 1 个节点")
         return errors
 
-    if len(dag.nodes) > 5:
-        errors.append(f"节点数 {len(dag.nodes)} 超过上限 5")
+    max_nodes = _cfg.get_retry_limits().get("max_nodes", 8)
+    if len(dag.nodes) > max_nodes:
+        errors.append(f"节点数 {len(dag.nodes)} 超过上限 {max_nodes}")
 
     for node in dag.nodes:
         prefix = f"节点 '{node.node_id}': "

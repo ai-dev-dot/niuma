@@ -125,5 +125,32 @@ class TestCompiler:
                 with pytest.raises(compiler.CompilationError):
                     compiler.compile_task("空的")
 
+    def test_exceeds_custom_max_nodes(self):
+        """自定义 max_nodes=3，提交 4 个节点应被拒绝。"""
+        four_nodes = json.dumps({
+            "nodes": [
+                {"node_id": f"n{i}", "name": f"N{i}",
+                 "signature": {"language": "python", "function_name": f"f{i}", "params": [], "return_type": "void", "allowed_imports": [], "methods": []},
+                 "contract": {}, "test_skeleton": "def test(): pass", "dependencies": []}
+                for i in range(4)
+            ]
+        })
+        with patch('compiler._cfg.get_retry_limits', return_value={
+            "compiler_schema_validation": 2,
+            "clarify_rounds": 20,
+            "worker_code_extraction": 5,
+            "reviewer_rounds": 5,
+            "llm_api_max_retries": 3,
+            "max_nodes": 3,
+        }):
+            with patch.object(llm, "call_strong") as mock_call:
+                mock_call.side_effect = [
+                    llm.LLMResponse(content=four_nodes, input_tokens=200, output_tokens=300),
+                    llm.LLMResponse(content=four_nodes, input_tokens=200, output_tokens=300),
+                    llm.LLMResponse(content=four_nodes, input_tokens=200, output_tokens=300),
+                ]
+                with pytest.raises(compiler.CompilationError, match="超过上限"):
+                    compiler.compile_task("4个节点但上限是3")
+
 
 import pytest

@@ -60,6 +60,24 @@ class DAGNode:
 class DAG:
     nodes: list[DAGNode] = field(default_factory=list)
 
+    def transitive_deps(self, node_id: str) -> set[str]:
+        """返回 node_id 的传递依赖闭包（不含自身）。"""
+        deps: set[str] = set()
+        node_map = {n.node_id: n for n in self.nodes}
+
+        def collect(nid: str, visited: set[str]) -> None:
+            if nid in visited:
+                return
+            visited.add(nid)
+            node = node_map.get(nid)
+            if node:
+                for dep_id in node.dependencies:
+                    deps.add(dep_id)
+                    collect(dep_id, visited)
+
+        collect(node_id, set())
+        return deps
+
     def topological_order(self) -> list[DAGNode]:
         """按拓扑序返回节点列表（依赖在前）。"""
         resolved: set[str] = set()

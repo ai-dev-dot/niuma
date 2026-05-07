@@ -28,9 +28,11 @@ DEFAULT_CONFIG = {
         "compiler_schema_validation": 5,
         "worker_code_extraction": 5,
         "reviewer_rounds": 5,
+        "reviewer_prompt_budget": 8000,
         "llm_api_max_retries": 3,
         "early_abort_fail_ratio": 0.6,
         "worker_max_iterations": 5,
+        "max_nodes": 8,
     },
 }
 
