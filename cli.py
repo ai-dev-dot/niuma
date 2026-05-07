@@ -857,11 +857,12 @@ def _title(text: str) -> None:
 
 
 def _getch() -> str:
-    """读取单个按键（跨平台）。ESC 返回 '\x1b'，Tab 返回 '\t'，方向键返回 'UP'/'DOWN'。"""
+    """读取单个按键（跨平台）。ESC→\x1b, Tab→\t, 方向键→UP/DOWN。
+    Linux 用 curses（标准库，SSH 可靠），Windows 用 msvcrt。"""
     if os.name == "nt":
         import msvcrt
         ch = msvcrt.getch()
-        if ch == b'\xe0':  # Windows 扩展键前缀
+        if ch == b'\xe0':
             ch2 = msvcrt.getch()
             if ch2 == b'H': return "UP"
             if ch2 == b'P': return "DOWN"
@@ -869,37 +870,24 @@ def _getch() -> str:
         if ch == b'\t': return "\t"
         return ch.decode("utf-8", errors="replace") if isinstance(ch, bytes) else ch
     else:
-        import tty, termios, select
-        fd = sys.stdin.fileno()
-        old = termios.tcgetattr(fd)
+        # Linux/SSH: curses 正确处理所有转义序列
+        import curses
+        stdscr = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        stdscr.keypad(True)
         try:
-            tty.setraw(fd)
-            ch = sys.stdin.read(1)
-            if ch == "\x1b":
-                # 读完缓冲区内所有后续字符（SSH 下可能分段到达）
-                import time as _time
-                _time.sleep(0.1)  # 等 SSH 缓冲聚合
-                rest = ""
-                deadline = _time.time() + 0.4
-                while _time.time() < deadline:
-                    if select.select([sys.stdin], [], [], 0.05)[0]:
-                        c = sys.stdin.read(1)
-                        if c:
-                            rest += c
-                            deadline = _time.time() + 0.1  # 每收到一个字符重置倒计时
-                        else:
-                            break
-                    else:
-                        break  # 超时无数据，结束读取
-                if rest == "[A": return "UP"
-                if rest == "[B": return "DOWN"
-                if rest == "[Z": return "SHTAB"
-                if rest: return f"\x1b{rest}"
-                return "\x1b"  # 裸 ESC — 确认是用户按了 ESC
-            if ch == "\t": return "\t"
-            return ch
+            ch = stdscr.getch()
+            if ch == 27: return "\x1b"          # ESC
+            if ch == 9:  return "\t"             # Tab
+            if ch == curses.KEY_UP: return "UP"
+            if ch == curses.KEY_DOWN: return "DOWN"
+            if ch == curses.KEY_BTAB: return "SHTAB"  # Shift+Tab
+            if ch == 10 or ch == 13: return "\n"  # Enter
+            if 32 <= ch <= 126: return chr(ch)    # 可打印 ASCII
+            return chr(ch) if ch < 256 else str(ch)
         finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+            curses.endwin()
 
 
 def _menu(title: str, options: list[str], header: str = "") -> int | None:
