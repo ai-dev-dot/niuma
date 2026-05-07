@@ -187,19 +187,18 @@ def _call_weak_model(node: DAGNode, context: dict[str, str], previous: NodeResul
 
 
 def _compile_check(code: str, lang: str, verbose: bool = False) -> bool:
-    """用沙箱运行编译/语法检查，真正验证代码是否可编译。不消耗 API token。"""
-    if lang == "typescript":
+    """用 compile() 或 tsc 验证代码语法，不消耗 API token。"""
+    if lang == "python":
+        try:
+            compile(code, "<worker>", "exec")
+            return True
+        except SyntaxError:
+            return False
+    elif lang == "typescript":
         result = sandbox.execute(
             code=code,
             test_code="",
             language="typescript",
-        )
-        return result.exit_code == 0
-    elif lang == "python":
-        result = sandbox.execute(
-            code=code,
-            test_code="",
-            language="python",
         )
         return result.exit_code == 0
     return True
