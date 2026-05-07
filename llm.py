@@ -135,8 +135,13 @@ def call(
                 data = json.loads(resp.read().decode("utf-8"))
 
             choice = data["choices"][0]
-            content = choice["message"]["content"]
+            msg = choice["message"]
+            content = msg.get("content", "")
             usage = data.get("usage", {})
+            # DeepSeek reasoning: content 为空时取 reasoning_content
+            reasoning = msg.get("reasoning_content", "")
+            if not content.strip() and reasoning:
+                content = reasoning
             elapsed = time.time() - t_start
             in_tok = usage.get("prompt_tokens", 0)
             out_tok = usage.get("completion_tokens", 0)
