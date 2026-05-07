@@ -576,7 +576,8 @@ def _git_menu(project: dict) -> None:
         # 显示 git log
         log_lines = project_manager.get_all_branches_log(proj_path)
         if log_lines:
-            print(f"  {log_lines[:25]}")
+            for line in log_lines.splitlines()[:15]:
+                print(f"  {line}")
         else:
             print("  (无提交记录 | no commits)")
 
