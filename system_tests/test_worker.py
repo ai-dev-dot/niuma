@@ -29,8 +29,6 @@ def _make_node(**kwargs) -> DAGNode:
     defaults.update(kwargs)
     return DAGNode(**defaults)
 
-# shared: compile check always passes
-_COMPILE_OK = sandbox.SandboxResult(exit_code=0, stdout="", stderr="")
 # shared: test failure
 _TEST_FAIL = sandbox.SandboxResult(exit_code=1, stdout="", stderr="AssertionError")
 _TEST_PASS = sandbox.SandboxResult(exit_code=0, stdout=".", stderr="")
@@ -40,8 +38,7 @@ class TestWorker:
     def test_pass_on_first_try(self):
         with patch.object(llm, "call_weak") as mock_llm, patch.object(sandbox, "execute") as mock_sandbox:
             mock_llm.return_value = llm.LLMResponse(content="def add(a, b): return a + b", input_tokens=100, output_tokens=30)
-            # 编译检查通过 + 测试通过
-            mock_sandbox.side_effect = [_COMPILE_OK, _TEST_PASS]
+            mock_sandbox.return_value = _TEST_PASS
             node = _make_node()
             result = worker.execute_node(node, {})
             assert result.status == NodeStatus.PASSED
@@ -54,12 +51,7 @@ class TestWorker:
                 llm.LLMResponse(content="def add(a, b): return a * b", input_tokens=100, output_tokens=30),
                 llm.LLMResponse(content="def add(a, b): return a + b", input_tokens=100, output_tokens=30),
             ]
-            # 编译检查均通过; 测试: 失败, 失败, 通过
-            mock_sandbox.side_effect = [
-                _COMPILE_OK, _TEST_FAIL,
-                _COMPILE_OK, _TEST_FAIL,
-                _COMPILE_OK, _TEST_PASS,
-            ]
+            mock_sandbox.side_effect = [_TEST_FAIL, _TEST_FAIL, _TEST_PASS]
             node = _make_node()
             result = worker.execute_node(node, {})
             assert result.status == NodeStatus.PASSED
@@ -72,12 +64,7 @@ class TestWorker:
                 llm.LLMResponse(content="def add(a, b): return a * b", input_tokens=100, output_tokens=30),
                 llm.LLMResponse(content="def add(a, b): return a / b", input_tokens=100, output_tokens=30),
             ]
-            # 编译检查均通过; 测试全部失败
-            mock_sandbox.side_effect = [
-                _COMPILE_OK, _TEST_FAIL,
-                _COMPILE_OK, _TEST_FAIL,
-                _COMPILE_OK, _TEST_FAIL,
-            ]
+            mock_sandbox.side_effect = [_TEST_FAIL, _TEST_FAIL, _TEST_FAIL]
             node = _make_node(max_iterations=3)
             result = worker.execute_node(node, {})
             assert result.status == NodeStatus.FAILED
@@ -86,16 +73,12 @@ class TestWorker:
     def test_fail_on_compile_check(self):
         """编译检查不通过时直接重做，不跑测试。"""
         with patch.object(llm, "call_weak") as mock_llm, patch.object(sandbox, "execute") as mock_sandbox:
-            # 代码必须通过 _looks_like_code 才能到达 _compile_check
+            # compile() 会拦截 Python 语法错误；代码必须通过 _looks_like_code
             mock_llm.side_effect = [
                 llm.LLMResponse(content="def add(a, b):\n    return a + \n", input_tokens=100, output_tokens=30),
                 llm.LLMResponse(content="def add(a, b): return a + b", input_tokens=100, output_tokens=30),
             ]
-            # 编译检查失败 → 重做 → 编译检查通过 → 测试通过
-            mock_sandbox.side_effect = [
-                sandbox.SandboxResult(exit_code=1, stdout="", stderr="SyntaxError"),
-                _COMPILE_OK, _TEST_PASS,
-            ]
+            mock_sandbox.return_value = _TEST_PASS
             node = _make_node()
             result = worker.execute_node(node, {})
             assert result.status == NodeStatus.PASSED
