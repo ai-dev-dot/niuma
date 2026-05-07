@@ -573,8 +573,8 @@ def _git_menu(project: dict) -> None:
         _clear()
         _title(f"Git 记录 | Git Log — {project['name']}")
 
-        # 显示 git log
-        log_lines = project_manager.get_all_branches_log(proj_path)
+        # 显示当前分支 git log
+        log_lines = project_manager.get_branch_log(proj_path)
         if log_lines:
             for line in log_lines.splitlines()[:15]:
                 print(f"  {line}")

@@ -507,6 +507,14 @@ def push_branch(repo_path: str | Path, branch: str, proxy: str = "") -> tuple[bo
 def get_all_branches_log(repo_path: str | Path) -> str:
     """返回当前仓库的完整 git log（含所有 niuma 分支）。"""
     output = git_run(repo_path, [
-        "log", "--oneline", "--all", "--max-count=30",
+        "log", "--oneline", "--graph", "--all", "--max-count=50",
+    ], check=False)
+    return output if output else ""
+
+
+def get_branch_log(repo_path: str | Path, max_count: int = 20) -> str:
+    """返回当前分支的 git log（含时间）。"""
+    output = git_run(repo_path, [
+        "log", "--format=%h %ad %s", "--date=short", f"--max-count={max_count}",
     ], check=False)
     return output if output else ""
