@@ -609,14 +609,16 @@ def _git_menu(project: dict) -> None:
         ok, msg = project_manager.push_branch(proj_path, current_branch, proxy=proxy)
         if ok:
             print(f"  [OK] Push 完成" + (f" — {msg}" if msg else ""))
-            # Push 成功后自动切回 main 并清理分支
             project_manager.switch_branch(proj_path, "main")
             project_manager.delete_task_branch(proj_path, current_branch)
             print(f"  已切回 main，本地分支已清理")
+            _wait()
+            return
         else:
             print(f"  [!!] Push 失败 — {msg}")
-        _wait()
-        return
+            print(f"  请检查凭据后重试")
+            _wait()
+            # 不 return，回到 git 菜单重试
 
 
 def _clarify_and_run(project: dict) -> None:
