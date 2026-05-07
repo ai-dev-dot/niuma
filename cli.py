@@ -857,8 +857,7 @@ def _title(text: str) -> None:
 
 
 def _getch() -> str:
-    """读取单个按键（跨平台）。ESC→\x1b, Tab→\t, 方向键→UP/DOWN。
-    Linux 用 curses（标准库，SSH 可靠），Windows 用 msvcrt。"""
+    """读取单个按键（跨平台）。ESC→\x1b, Tab→\t, 方向键→UP/DOWN。"""
     if os.name == "nt":
         import msvcrt
         ch = msvcrt.getch()
@@ -870,24 +869,33 @@ def _getch() -> str:
         if ch == b'\t': return "\t"
         return ch.decode("utf-8", errors="replace") if isinstance(ch, bytes) else ch
     else:
-        # Linux/SSH: curses 正确处理所有转义序列
-        import curses
-        stdscr = curses.initscr()
-        curses.noecho()
-        curses.cbreak()
-        stdscr.keypad(True)
+        import tty, termios, select, time as _time
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
         try:
-            ch = stdscr.getch()
-            if ch == 27: return "\x1b"          # ESC
-            if ch == 9:  return "\t"             # Tab
-            if ch == curses.KEY_UP: return "UP"
-            if ch == curses.KEY_DOWN: return "DOWN"
-            if ch == curses.KEY_BTAB: return "SHTAB"  # Shift+Tab
-            if ch == 10 or ch == 13: return "\n"  # Enter
-            if 32 <= ch <= 126: return chr(ch)    # 可打印 ASCII
-            return chr(ch) if ch < 256 else str(ch)
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+            if ch == "\x1b":
+                # 读缓冲区内所有后续字符。SSH 下 `[A` 可能延迟到达。
+                rest = ""
+                deadline = _time.time() + 0.5
+                while _time.time() < deadline:
+                    r, _, _ = select.select([sys.stdin], [], [], 0.1)
+                    if not r:
+                        break
+                    c = sys.stdin.read(1)
+                    if not c:
+                        break
+                    rest += c
+                if rest == "[A": return "UP"
+                if rest == "[B": return "DOWN"
+                if rest == "[Z": return "SHTAB"
+                if rest: return "\x1b" + rest
+                return "\x1b"
+            if ch == "\t": return "\t"
+            return ch
         finally:
-            curses.endwin()
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
 def _menu(title: str, options: list[str], header: str = "") -> int | None:
