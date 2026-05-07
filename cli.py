@@ -854,16 +854,16 @@ def _getch() -> str:
             ch = msvcrt.getch()
         return ch.decode("utf-8", errors="replace") if isinstance(ch, bytes) else ch
     else:
-        import tty, termios
+        import tty, termios, select
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         try:
             tty.setraw(fd)
             ch = sys.stdin.read(1)
             if ch == "\x1b":
-                # 检查是否跟了 [ (箭头键序列)
+                # 非阻塞检查是否是转义序列（如箭头键）
                 rest = ""
-                for _ in range(2):
+                while select.select([sys.stdin], [], [], 0.05)[0]:
                     c = sys.stdin.read(1)
                     if not c:
                         break
