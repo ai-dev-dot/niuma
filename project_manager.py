@@ -515,12 +515,12 @@ def get_all_branches_log(repo_path: str | Path) -> str:
     return output if output else ""
 
 
-def get_branch_log(repo_path: str | Path, branch: str = "", max_count: int = 20) -> str:
-    """返回指定分支的 git log（含时间，升序）。"""
+def get_branch_log(repo_path: str | Path, branch: str = "") -> str:
+    """返回指定分支的完整 git log（含时间）。"""
     target = [branch] if branch else []
     output = git_run(repo_path, [
         "log", "--format=%h %ad %s",
-        "--date=format:%m-%d %H:%M", f"--max-count={max_count}",
+        "--date=format:%m-%d %H:%M",
     ] + target, check=False)
     return output if output else ""
 

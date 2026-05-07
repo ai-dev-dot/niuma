@@ -581,7 +581,7 @@ def _git_menu(project: dict) -> None:
         print(f"  {'-'*45}")
         log_lines = project_manager.get_branch_log(proj_path, current_branch)
         if log_lines:
-            for line in log_lines.splitlines()[:12]:
+            for line in log_lines.splitlines():
                 print(f"  {line}")
         else:
             print("  (无提交记录)")
