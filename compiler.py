@@ -33,7 +33,7 @@ def clarify_step(history: list[dict]) -> dict:
         content = entry["content"]
         messages.append({"role": role, "content": content})
 
-    resp = llm.call_strong_messages(messages, max_tokens=800)
+    resp = llm.call_strong_messages(messages, max_tokens=0)
 
     # 解析 JSON 响应
     text = resp.content.strip()

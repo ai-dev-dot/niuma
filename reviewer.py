@@ -15,7 +15,7 @@ def review(task_description: str, dag: DAG, node_results: list[NodeResult], verb
         print(f"  [强模型] 开始审核 {total} 个节点 (通过: {passed})...")
 
     prompt = _build_review_prompt(task_description, dag, node_results)
-    resp = llm.call_strong(prompt, max_tokens=1500)
+    resp = llm.call_strong(prompt)
     rv = _parse_review(resp.content, node_results)
 
     if verbose:
