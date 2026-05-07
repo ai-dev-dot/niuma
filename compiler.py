@@ -103,7 +103,7 @@ JSON 格式: { "nodes": [...] }
   - params 格式: [{"name": "参数名", "type": "类型"}, ...]
   - methods 格式: [{"name": "方法名", "params": [...], "return_type": "类型"}, ...]
 - contract: { preconditions, postconditions, invariants } 每个都是字符串数组
-- test_skeleton: 字符串，独立可执行的测试代码。**关键约束：测试和执行代码在同一个文件中执行，因此测试代码必须直接调用函数（如 convert_csv_to_json(...)），绝对不能用 from/import 导入被测函数。** 测试代码末尾加 if __name__ == '__main__': 调用测试函数并 print('ALL TESTS PASSED')。
+- test_skeleton: 字符串，独立可执行的测试代码。可以通过 from <依赖节点id> import <函数名> 导入依赖节点的函数（依赖节点的代码会作为独立文件存在于沙箱中）。测试代码末尾加 if __name__ == '__main__': 调用测试函数并 print('ALL TESTS PASSED')。
 - max_iterations: 整数，默认5
 - dependencies: 字符串数组，依赖的 node_id 列表
 
@@ -111,7 +111,6 @@ JSON 格式: { "nodes": [...] }
 - language="typescript" 或 "python"；allowed_imports 仅标准库；最多5个节点
 - **不同性质的职责要分开**（数据存储、调度逻辑、对外接口各自成节点）
 - 2节点示例只是一个参考模式。简单任务可以单节点，复杂任务合理拆分
-- **test_skeleton 不要用 import/from 导入被测代码**，因为测试和代码在同一个文件中
 
 === 示例：2节点分解（任务: "实现一个栈，支持 push/pop/peek/size"） ===
 

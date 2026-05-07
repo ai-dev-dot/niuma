@@ -26,9 +26,10 @@ def execute(
     language: str = "typescript",
     cpu_timeout: int = 30,
     memory_limit_mb: int = 256,
+    context_files: dict[str, str] | None = None,
 ) -> SandboxResult:
     """在受限环境中执行 code + test_code，返回结构化结果。
-    Execute code + test_code in a restricted environment."""
+    context_files: {filename: code} 额外文件，写入沙箱目录供 import。"""
 
     if language not in ("typescript", "python"):
         return SandboxResult(
@@ -42,6 +43,11 @@ def execute(
 
     tmpdir = tempfile.mkdtemp(prefix="niuma_sandbox_")
     try:
+        # 写入依赖文件
+        if context_files:
+            for fname, fcode in context_files.items():
+                (Path(tmpdir) / fname).write_text(fcode, encoding="utf-8")
+
         if language == "typescript":
             return _execute_typescript(tmpdir, code, test_code, cpu_timeout, memory_limit_mb)
         else:

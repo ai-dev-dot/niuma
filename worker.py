@@ -45,10 +45,17 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], task_id: str 
             continue
 
         result.generated_code = code
+        # 构建依赖文件：已完成的节点代码作为独立文件，供 import 使用
+        ext = "py" if node.signature.language == "python" else "ts"
+        ctx_files: dict[str, str] = {}
+        if completed_context:
+            for dep_id, dep_code in completed_context.items():
+                ctx_files[f"{dep_id}.{ext}"] = dep_code
         sb_result = sandbox.execute(
             code=code,
             test_code=node.test_skeleton,
             language=node.signature.language,
+            context_files=ctx_files if ctx_files else None,
         )
         result.test_output = sb_result.stdout + "\n" + sb_result.stderr
 
