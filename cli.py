@@ -876,7 +876,7 @@ def _getch() -> str:
             tty.setraw(fd)
             ch = sys.stdin.read(1)
             if ch == "\x1b":
-                # 只检测 Shift+Tab，箭头键吞掉不响应
+                # 只响应 Shift+Tab，箭头键吞掉
                 r, _, _ = select.select([sys.stdin], [], [], 0.15)
                 if r:
                     c2 = sys.stdin.read(1)
@@ -885,8 +885,10 @@ def _getch() -> str:
                         if r2:
                             c3 = sys.stdin.read(1)
                             if c3 == "Z": return "SHTAB"
-                            # [A/[B/[C/[D = 箭头键，吞掉
-                return "\x1b"  # 裸 ESC
+                            return ""  # 箭头键，吞掉
+                        return ""  # 不完整的箭头序列，吞掉
+                    return ""  # 非[序列，吞掉
+                return "\x1b"  # 裸 ESC — 没有后续字符
             if ch == "\t": return "\t"
             return ch
         finally:
