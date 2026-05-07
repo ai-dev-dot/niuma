@@ -675,9 +675,8 @@ def _clarify_and_run(project: dict) -> None:
 
         question = resp.get("question", str(resp))
         print(f"\n  Q: {question}")
+        print("  (直接回车=退出 | Enter to exit)")
         answer = _ask("  > ")
-        if not answer:
-            return
         history.append({"role": "assistant", "content": f"Q: {question}"})
         history.append({"role": "user", "content": answer})
     else:
