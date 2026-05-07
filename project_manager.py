@@ -519,7 +519,7 @@ def get_branch_log(repo_path: str | Path, branch: str = "", max_count: int = 20)
     """返回指定分支的 git log（含时间，升序）。"""
     target = [branch] if branch else []
     output = git_run(repo_path, [
-        "log", "--reverse", "--format=%h %ad %s",
+        "log", "--format=%h %ad %s",
         "--date=format:%m-%d %H:%M", f"--max-count={max_count}",
     ] + target, check=False)
     return output if output else ""
