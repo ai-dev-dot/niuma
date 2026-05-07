@@ -45,25 +45,21 @@ def _check_first_run() -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def _main_menu() -> None:
+    items = ["配置强模型 | Configure Strong Model",
+             "配置弱模型 | Configure Weak Model",
+             "管理项目 | Manage Projects",
+             "退出 | Exit"]
     while True:
-        _clear()
-        _title("牛马 Niuma")
-        print("  1. 配置强模型 | Configure Strong Model")
-        print("  2. 配置弱模型 | Configure Weak Model")
-        print("  3. 管理项目 | Manage Projects")
-        print("  4. 退出 | Exit")
-        print()
-
-        choice = _ask("请选择 | Select [1-4, ESC=退出]", "1", esc="4")
-        if choice == "1":
-            _config_menu("strong")
-        elif choice == "2":
-            _config_menu("weak")
-        elif choice == "3":
-            _projects_menu()
-        elif choice == "4":
+        idx = _menu("牛马 Niuma", items)
+        if idx is None or idx == 3:
             print("再见 | Goodbye.")
             sys.exit(0)
+        elif idx == 0:
+            _config_menu("strong")
+        elif idx == 1:
+            _config_menu("weak")
+        elif idx == 2:
+            _projects_menu()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -250,37 +246,19 @@ def _manual_setup(which: str) -> None:
 def _projects_menu() -> None:
     while True:
         projects = project_manager.list_projects()
-        _clear()
-        _title("管理项目 | Manage Projects")
+        items: list[str] = []
+        for p in projects:
+            items.append(f"{p['name']}  ({p['git_url']})")
+        items.append("新建项目 | New Project")
+        items.append("返回 | Back")
 
-        if not projects:
-            print("  (暂无项目) | (no projects yet)")
-            print()
-
-        new_idx = len(projects) + 1
-        back_idx = len(projects) + 2
-
-        for i, p in enumerate(projects, 1):
-            print(f"  {i}. {p['name']}")
-            print(f"     {p['git_url']}")
-            print()
-
-        print(f"  {new_idx}. 新建项目 | New Project")
-        print(f"  {back_idx}. 返回 | Back (ESC)")
-        print()
-
-        choice = _ask(f"请选择 | Select [1-{back_idx}, ESC=返回]", str(back_idx))
-        if choice == str(back_idx):
+        idx = _menu("管理项目 | Manage Projects", items)
+        if idx is None or idx == len(items) - 1:
             return
-        elif choice == str(new_idx):
+        elif idx == len(items) - 2:
             _create_project()
-        else:
-            try:
-                idx = int(choice) - 1
-                if 0 <= idx < len(projects):
-                    _project_menu(projects[idx])
-            except ValueError:
-                pass
+        elif 0 <= idx < len(projects):
+            _project_menu(projects[idx])
 
 
 def _create_project() -> None:
@@ -854,12 +832,16 @@ def _title(text: str) -> None:
 
 
 def _getch() -> str:
-    """读取单个按键（跨平台）。ESC 返回 '\x1b'。"""
+    """读取单个按键（跨平台）。ESC 返回 '\x1b'，Tab 返回 '\t'，方向键返回 'UP'/'DOWN'。"""
     if os.name == "nt":
         import msvcrt
         ch = msvcrt.getch()
         if ch == b'\xe0':  # Windows 扩展键前缀
-            ch = msvcrt.getch()
+            ch2 = msvcrt.getch()
+            if ch2 == b'H': return "UP"
+            if ch2 == b'P': return "DOWN"
+            return ch2.decode("utf-8", errors="replace")
+        if ch == b'\t': return "\t"
         return ch.decode("utf-8", errors="replace") if isinstance(ch, bytes) else ch
     else:
         import tty, termios, select
@@ -869,18 +851,60 @@ def _getch() -> str:
             tty.setraw(fd)
             ch = sys.stdin.read(1)
             if ch == "\x1b":
-                # 非阻塞检查是否是转义序列（如箭头键）
                 rest = ""
                 while select.select([sys.stdin], [], [], 0.05)[0]:
                     c = sys.stdin.read(1)
                     if not c:
                         break
                     rest += c
-                if rest:
-                    ch += rest
+                if rest == "[A": return "UP"
+                if rest == "[B": return "DOWN"
+                if rest == "[Z": return "SHTAB"  # Shift+Tab
+                if rest: return rest
+                return "\x1b"
+            if ch == "\t": return "\t"
             return ch
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def _menu(title: str, options: list[str]) -> int | None:
+    """通用菜单组件。支持 ↑↓/Tab 导航、数字选择、Enter 确认、ESC 返回。
+    返回选中的索引 (0-based)，ESC 返回 None。"""
+    n = len(options)
+    idx = 0
+    while True:
+        _clear()
+        _title(title)
+        for i, opt in enumerate(options):
+            if i == idx:
+                # ANSI 反转色高亮
+                print(f"  \033[7m {i+1}. {opt} \033[0m")
+            else:
+                print(f"  {i+1}. {opt}")
+        print()
+        print("  ↑↓/Tab 导航 | 数字选择 | Enter 确认 | ESC 返回")
+
+        ch = _getch()
+        if ch == "\x1b":  # ESC
+            return None
+        elif ch in ("\r", "\n"):  # Enter
+            return idx
+        elif ch == "\t":  # Tab
+            idx = (idx + 1) % n
+        elif ch == "SHTAB":  # Shift+Tab
+            idx = (idx - 1) % n
+        elif ch == "UP":
+            idx = (idx - 1) % n
+        elif ch == "DOWN":
+            idx = (idx + 1) % n
+        elif ch.isdigit():
+            num = int(ch)
+            if 1 <= num <= n:
+                idx = num - 1  # 跳到对应选项
+            elif num == n + 1 and n > 0:
+                pass  # 可选: 处理后一个数字
+        # 其他按键忽略，重新渲染
 
 
 def _input_line(prompt: str, default: str = "") -> str | None:
