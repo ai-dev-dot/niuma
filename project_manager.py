@@ -79,7 +79,7 @@ def create_project(name: str, git_url: str, proxy: str = "") -> dict:
     if proxy:
         clone_cmd = ["git", "clone", "-c", f"http.proxy={proxy}", "-c", f"https.proxy={proxy}", git_url, str(local_path)]
 
-    result = subprocess.run(clone_cmd, capture_output=True, text=True)
+    result = subprocess.run(clone_cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         # 清理失败的克隆目录
         if local_path.exists():
@@ -137,6 +137,8 @@ def git_run(repo_path: str | Path, args: list[str], check: bool = True) -> str:
         cwd=str(repo_path),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if check and result.returncode != 0:
         raise RuntimeError(
@@ -495,6 +497,8 @@ def push_branch(repo_path: str | Path, branch: str, proxy: str = "") -> tuple[bo
         cwd=str(repo_path),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     output = result.stderr.strip() or result.stdout.strip()
     return result.returncode == 0, output
