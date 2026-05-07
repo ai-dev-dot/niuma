@@ -3,6 +3,17 @@
 set -e
 cd "$(dirname "$0")"
 
+# --update: 自更新
+if [ "$1" = "--update" ]; then
+    echo "  更新牛马... | Updating niuma..."
+    git checkout -- niuma 2>/dev/null || true
+    git pull
+    chmod +x niuma
+    echo "  [OK] 已更新 | Updated."
+    echo
+    exec ./niuma
+fi
+
 # 检测 Python（Ubuntu 用 python3，其他用 python）
 _PY=python
 command -v python3 >/dev/null 2>&1 && _PY=python3
