@@ -563,6 +563,7 @@ def _git_menu(project: dict) -> None:
     items = []
     if current_branch.startswith("niuma"):
         items.append(f"Push {current_branch} {'到远程' if zh else 'to remote'}")
+    items.append("配置凭据" if zh else "Configure Credentials")
     items.append("返回" if zh else "Back")
 
     n = len(items)
@@ -603,11 +604,15 @@ def _git_menu(project: dict) -> None:
         elif ch.isdigit() and 1 <= int(ch) <= n:
             idx = int(ch) - 1
 
-    if idx == len(items) - 1:
+    back_idx = len(items) - 1
+    cred_idx = len(items) - 2
+
+    if idx == back_idx:
         return
+    elif idx == cred_idx:
+        _setup_git_credentials(proj_path)
     elif idx == 0 and current_branch.startswith("niuma"):
         remote = project_manager.git_run(proj_path, ["remote", "get-url", "origin"], check=False)
-        print(f"  远程仓库: {remote}")
         proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
         print(f"  Pushing {current_branch} → {remote} ...")
         ok, msg = project_manager.push_branch(proj_path, current_branch, proxy=proxy)
@@ -622,7 +627,44 @@ def _git_menu(project: dict) -> None:
             print(f"  [!!] Push 失败 — {msg}")
             print(f"  请检查凭据后重试")
             _wait()
-            # 不 return，回到 git 菜单重试
+
+
+def _setup_git_credentials(repo_path: str | Path) -> None:
+    """重新配置 git 凭据。"""
+    zh = config.get_lang() == "zh"
+    remote = project_manager.git_run(repo_path, ["remote", "get-url", "origin"], check=False)
+    host_info = project_manager.parse_git_host(remote)
+    host = host_info["host"]
+    service = host_info["service"]
+
+    _clear()
+    _title("配置 Git 凭据" if zh else "Configure Git Credentials")
+    print(f"  Remote: {remote}")
+    print()
+
+    # 确保 credential.helper 已配
+    cred = project_manager.check_git_credential_helper()
+    if not cred["configured"]:
+        print(f"  {'正在配置 credential.helper...' if zh else 'Configuring credential.helper...'}")
+        import subprocess as _sp
+        _sp.run(["git", "config", "--global", "credential.helper", "store"],
+                capture_output=True, text=True)
+        print(f"  [OK] credential.helper = store")
+
+    print(f"  {'输入 {service} 凭据' if zh else f'Enter {service} credentials'}:")
+    username = _ask_text(f"  {'用户名' if zh else 'Username'}")
+    if not username:
+        return
+    token = _ask_secret(f"  Token")
+    if not token:
+        return
+
+    ok, msg = project_manager.seed_git_credentials(host, username, token)
+    if ok:
+        print(f"  [OK] {msg}")
+    else:
+        print(f"  [!!] {msg}")
+    _wait()
 
 
 def _clarify_and_run(project: dict) -> None:
