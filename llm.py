@@ -72,6 +72,7 @@ def call(
     max_retries: int | None = None,
     messages: list[dict] | None = None,
     log_callback=None,
+    reasoning: str = "",  # "max" | "high" | ""
 ) -> LLMResponse:
     """调用 LLM API，含指数退避重试。每次调用自动写全量日志到 _log_path。"""
 
@@ -106,15 +107,14 @@ def call(
     if max_tokens > 0:
         body_data["max_tokens"] = max_tokens
 
-    # DeepSeek reasoning: 最强 max 模式
-    _is_ds = "deepseek" in model.lower() or "deepseek" in base_url.lower()
-    if _is_ds:
-        body_data["reasoning_effort"] = "max"
+    _use_reasoning = reasoning and reasoning in ("max", "high")
+    if _use_reasoning:
+        body_data["reasoning_effort"] = reasoning
         body_data["thinking"] = {"type": "enabled"}
 
     body = json.dumps(body_data).encode("utf-8")
 
-    note = " (deep reasoning, 可能较慢)" if _is_ds else ""
+    note = " (reasoning, 可能较慢)" if _use_reasoning else ""
     _log(f"  → {model} ({len(prompt)} chars){note} ...", end="", flush=True)
     t_start = time.time()
 
@@ -233,6 +233,7 @@ def call_strong(prompt: str, **kwargs) -> LLMResponse:
         max_tokens=kwargs.pop("max_tokens", 0),
         temperature=kwargs.pop("temperature", 0.1),
         system=kwargs.pop("system", ""),
+        reasoning=kwargs.pop("reasoning", None) or c.get("reasoning", ""),
         **kwargs,
     )
 
@@ -249,6 +250,7 @@ def call_weak(prompt: str, **kwargs) -> LLMResponse:
         max_tokens=kwargs.pop("max_tokens", 0),
         temperature=kwargs.pop("temperature", 0.3),
         system=kwargs.pop("system", ""),
+        reasoning=kwargs.pop("reasoning", None) or c.get("reasoning", ""),
         **kwargs,
     )
 

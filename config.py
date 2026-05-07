@@ -14,11 +14,13 @@ DEFAULT_CONFIG = {
         "api_key": "",
         "base_url": "https://api.openai.com/v1",
         "model": "",
+        "reasoning": "",  # "max" | "high" | "" (关闭，仅 DeepSeek 支持)
     },
     "weak": {
         "api_key": "",
         "base_url": "https://api.openai.com/v1",
         "model": "",
+        "reasoning": "",
     },
     "retry_limits": {
         "clarify_rounds": 20,
@@ -153,10 +155,17 @@ def get_model_config(which: str) -> dict:
     config = get_config()
     model = config.get(which, DEFAULT_CONFIG[which])
 
+    m = model.get("model", "") or os.getenv(f"{which.upper()}_MODEL", "")
+    # reasoning: 显式设置优先，否则 DeepSeek 默认 max
+    reasoning = model.get("reasoning", "")
+    if not reasoning and "deepseek" in m.lower():
+        reasoning = "max"
+
     return {
         "api_key": model.get("api_key", "") or os.getenv("LLM_API_KEY", ""),
         "base_url": model.get("base_url", "https://api.openai.com/v1") or os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
-        "model": model.get("model", "") or os.getenv(f"{which.upper()}_MODEL", ""),
+        "model": m,
+        "reasoning": reasoning,
     }
 
 
