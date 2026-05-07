@@ -877,7 +877,7 @@ def _getch() -> str:
             ch = sys.stdin.read(1)
             if ch == "\x1b":
                 # 只响应 Shift+Tab，箭头键吞掉
-                r, _, _ = select.select([sys.stdin], [], [], 0.15)
+                r, _, _ = select.select([sys.stdin], [], [], 0.5)
                 if r:
                     c2 = sys.stdin.read(1)
                     if c2 == "[":
@@ -915,7 +915,7 @@ def _menu(title: str, options: list[str], header: str = "") -> int | None:
             else:
                 print(f"  {i+1}. {opt}")
         print()
-        print("  Tab 导航 | 数字选择 | Enter 确认 | ESC 返回")
+        print("  Tab 导航 | 数字选择 | Enter 确认 | ESC 返回 | ⚠请勿使用↑↓键")
 
         ch = _getch()
         if ch == "\x1b":
