@@ -523,96 +523,95 @@ def _create_project() -> None:
 
 
 def _project_menu(project: dict) -> None:
+    zh = config.get_lang() == "zh"
     while True:
-        _clear()
-        _title(f"项目 | Project: {project['name']}")
-        print(f"  Git:  {project['git_url']}")
-        print(f"  路径: {project['local_path']}")
-        print()
-
-        proj_path = project_manager.get_project_path(project["name"])
-        if proj_path:
-            # 列出任务文件
-            tasks_dir = proj_path / "tasks"
-            tsk_files = list(tasks_dir.glob("*.tsk")) if tasks_dir.exists() else []
-            if tsk_files:
-                print(f"  任务文件 | Task files ({len(tsk_files)}):")
-                for tf in tsk_files:
-                    print(f"    - {tf.name}")
-            else:
-                print(f"  (无任务文件 | no task files — 在 {tasks_dir}/ 下创建 .tsk 文件)")
-            print()
-
-        print("  1. 新建任务 | New Task")
-        print("  2. Git 提交记录 | Git Commits")
-        print("  D. 删除项目 | Delete Project")
-        print("  3. 返回 | Back")
-        print()
-
-        choice = _ask("请选择 | Select [1-3, ESC=返回]", "3").lower()
-        if choice == "1":
+        title = f"{project['name']}  ({project['git_url']})"
+        items = [
+            "新建任务" if zh else "New Task",
+            "Git 提交记录" if zh else "Git Commits",
+            "删除项目" if zh else "Delete Project",
+            "返回" if zh else "Back",
+        ]
+        idx = _menu(title, items)
+        if idx is None or idx == 3:
+            return
+        elif idx == 0:
             _clarify_and_run(project)
-        elif choice == "2":
+        elif idx == 1:
             _git_menu(project)
-        elif choice == "d":
-            confirm = _ask(f"  确认删除 '{project['name']}'? (输入项目名确认 | type name to confirm)")
+        elif idx == 2:
+            confirm = _ask(f"  确认删除 '{project['name']}'? (输入项目名确认)")
             if confirm == project["name"]:
                 project_manager.delete_project(project["name"])
-                print(f"\n  [OK] 项目 '{project['name']}' 已从列表中移除 | removed from list")
+                print(f"\n  [OK] 项目 '{project['name']}' 已从列表中移除")
                 print(f"  本地文件保留在: {project['local_path']}")
-                print(f"  (如需删除本地文件请手动操作 | Manually delete local files if needed)")
                 _wait()
                 return
             else:
-                print("  已取消 | Cancelled.")
+                print("  已取消")
                 _wait()
-        elif choice == "3":
-            return
 
 
 def _git_menu(project: dict) -> None:
     """Git 提交记录查看和推送。"""
+    zh = config.get_lang() == "zh"
     proj_path = project_manager.get_project_path(project["name"])
     if not proj_path:
-        print(f"  [!!] 项目路径不存在 | Project path not found")
         _wait()
         return
 
+    current_branch = project_manager.git_run(proj_path, ["branch", "--show-current"], check=False).strip()
+
+    # 构建操作选项
+    items = []
+    if current_branch.startswith("niuma"):
+        items.append(f"Push {current_branch} {'到远程' if zh else 'to remote'}")
+    items.append("返回" if zh else "Back")
+
+    n = len(items)
+    idx = 0
     while True:
         _clear()
-        _title(f"Git 记录 | Git Log — {project['name']}")
-
-        current_branch = project_manager.git_run(proj_path, ["branch", "--show-current"], check=False).strip()
-
-        # 显示当前分支的 git log
-        print(f"  当前分支: {current_branch}")
+        title = f"Git — {project['name']}" if zh else f"Git — {project['name']}"
+        _title(title)
+        print(f"  {'当前分支' if zh else 'Branch'}: {current_branch}")
         print(f"  {'-'*45}")
         log_lines = project_manager.get_branch_log(proj_path, current_branch)
         if log_lines:
             for line in log_lines.splitlines():
                 print(f"  {line}")
         else:
-            print("  (无提交记录)")
+            print(f"  ({'无提交记录' if zh else 'no commits'})")
         print()
-
-        # Push 选项（当前是 niuma 分支时）
-        if current_branch.startswith("niuma"):
-            print(f"  P. Push {current_branch} 到远程 | Push to remote")
-        print(f"  B/ESC. 返回")
-        print()
-
-        choice = _ask("请选择 | Select", "B").lower()
-        if choice == "b":
-            return
-        elif choice == "p" and current_branch.startswith("niuma"):
-            proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
-            print(f"  Pushing {current_branch}...")
-            ok, msg = project_manager.push_branch(proj_path, current_branch, proxy=proxy)
-            if ok:
-                print(f"  [OK] Push 完成 | Done" + (f" — {msg}" if msg else ""))
+        # 操作选项（Tab 导航）
+        for i, opt in enumerate(items):
+            if i == idx:
+                print(f"  \033[7m {i+1}. {opt} \033[0m")
             else:
-                print(f"  [!!] Push 失败 | Failed: {msg}")
-            _wait()
+                print(f"  {i+1}. {opt}")
+        print()
+        print("  ↑↓/Tab 导航 | Enter 确认 | ESC 返回")
+
+        ch = _getch()
+        if ch == "\x1b":
+            return
+        elif ch in ("\r", "\n"):
+            break
+        elif ch == "\t" or ch == "DOWN":
+            idx = (idx + 1) % n
+        elif ch == "SHTAB" or ch == "UP":
+            idx = (idx - 1) % n
+        elif ch.isdigit() and 1 <= int(ch) <= n:
+            idx = int(ch) - 1
+
+    if idx == len(items) - 1:
+        return
+    elif idx == 0 and current_branch.startswith("niuma"):
+        proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
+        print(f"  Pushing {current_branch}...")
+        ok, msg = project_manager.push_branch(proj_path, current_branch, proxy=proxy)
+        print(f"  {'[OK]' if ok else '[!!]'} {msg}" if msg else f"  {'[OK]' if ok else '[!!]'}")
+        _wait()
 
 
 def _clarify_and_run(project: dict) -> None:
@@ -904,6 +903,13 @@ def _menu(title: str, options: list[str]) -> int | None:
     while True:
         _clear()
         _title(title)
+        for i, opt in enumerate(options):
+            if i == idx:
+                print(f"  \033[7m {i+1}. {opt} \033[0m")
+            else:
+                print(f"  {i+1}. {opt}")
+        print()
+        print("  ↑↓/Tab 导航 | 数字选择 | Enter 确认 | ESC 返回")
         for i, opt in enumerate(options):
             if i == idx:
                 # ANSI 反转色高亮
