@@ -10,11 +10,12 @@ _CONFIG_DIR = Path.home() / ".niuma"
 _CONFIG_FILE = _CONFIG_DIR / "config.json"
 
 DEFAULT_CONFIG = {
+    "lang": "",  # "zh" | "en" | "" (首次运行选择)
     "strong": {
         "api_key": "",
         "base_url": "https://api.openai.com/v1",
         "model": "",
-        "reasoning": "",  # "max" | "high" | "" (关闭，仅 DeepSeek 支持)
+        "reasoning": "",
     },
     "weak": {
         "api_key": "",
@@ -195,6 +196,46 @@ def config_exists() -> bool:
 
 def get_config_path() -> str:
     return str(_CONFIG_FILE)
+
+
+def get_lang() -> str:
+    """获取当前语言。'' 表示未设置。"""
+    cfg = get_config()
+    return cfg.get("lang", "")
+
+
+def set_lang(lang: str) -> None:
+    """设置语言。lang = 'zh' | 'en'"""
+    cfg = get_config()
+    cfg["lang"] = lang
+    save_config(cfg)
+
+
+# 翻译表
+T = {
+    "牛马 Niuma": {"zh": "牛马 Niuma", "en": "Niuma"},
+    "配置强模型": {"zh": "配置强模型", "en": "Configure Strong Model"},
+    "配置弱模型": {"zh": "配置弱模型", "en": "Configure Weak Model"},
+    "管理项目": {"zh": "管理项目", "en": "Manage Projects"},
+    "退出": {"zh": "退出", "en": "Exit"},
+    "再见": {"zh": "再见。", "en": "Goodbye."},
+    "新建项目": {"zh": "新建项目", "en": "New Project"},
+    "返回": {"zh": "返回", "en": "Back"},
+    "请选择语言": {"zh": "请选择语言 / Select Language", "en": "Select Language"},
+    "中文": {"zh": "中文", "en": "Chinese"},
+    "English": {"zh": "English", "en": "English"},
+}
+
+
+def t(key: str) -> str:
+    """翻译。未翻译的 key 原样返回。"""
+    lang = get_lang()
+    if not lang:
+        lang = "zh"  # 默认中文
+    entry = T.get(key)
+    if entry:
+        return entry.get(lang, key)
+    return key
 
 
 def list_providers() -> list[dict]:

@@ -26,7 +26,7 @@ def main() -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def _check_first_run() -> None:
-    """检测并迁移旧 .env 和 state.sqlite。"""
+    """首次运行: 迁移旧数据 + 选择语言。"""
     migrated = config._migrate_from_env()
     if migrated:
         print("  已从 .env 导入配置 | Config imported from .env")
@@ -36,8 +36,23 @@ def _check_first_run() -> None:
     if old_db.exists():
         print(f"  检测到旧数据库 | old database found: {old_db}")
         print(f"  新数据位置 | new location: {project_manager._DB_PATH}")
-        print(f"  如需迁移，请手动将 {old_db} 复制到 {project_manager._DB_PATH}")
-        print(f"  (旧数据库中的历史任务记录无法自动合并到新的多项目结构中)")
+
+    # 语言选择（仅首次）
+    if not config.get_lang():
+        _clear()
+        print("  ==================================================")
+        print("   请选择语言 / Select Language")
+        print("  ==================================================")
+        print()
+        print("  1. 中文")
+        print("  2. English")
+        print()
+        choice = input("  > ").strip()
+        config.set_lang("zh" if choice == "2" else "zh")
+        print()
+        print("  (后续可在主菜单切换语言 | Switch language anytime in main menu)")
+        print()
+        _wait()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -45,14 +60,21 @@ def _check_first_run() -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def _main_menu() -> None:
-    items = ["配置强模型 | Configure Strong Model",
-             "配置弱模型 | Configure Weak Model",
-             "管理项目 | Manage Projects",
-             "退出 | Exit"]
+    lang = config.get_lang()
+    zh = lang == "zh"
+    items = [
+        "配置强模型" if zh else "Configure Strong Model",
+        "配置弱模型" if zh else "Configure Weak Model",
+        "管理项目" if zh else "Manage Projects",
+        ("语言/Lang: 中文" if zh else "Language: English"),
+        "退出" if zh else "Exit",
+    ]
     while True:
-        idx = _menu("牛马 Niuma", items)
-        if idx is None or idx == 3:
-            print("再见 | Goodbye.")
+        title = "牛马 Niuma" if zh else "Niuma"
+        idx = _menu(title, items)
+        if idx is None or idx == 4:
+            msg = "再见。" if zh else "Goodbye."
+            print(f"  {msg}")
             sys.exit(0)
         elif idx == 0:
             _config_menu("strong")
@@ -60,6 +82,12 @@ def _main_menu() -> None:
             _config_menu("weak")
         elif idx == 2:
             _projects_menu()
+        elif idx == 3:
+            # 切换语言
+            new_lang = "en" if zh else "zh"
+            config.set_lang(new_lang)
+            # 重建菜单
+            break
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -244,15 +272,15 @@ def _manual_setup(which: str) -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def _projects_menu() -> None:
+    zh = config.get_lang() == "zh"
     while True:
         projects = project_manager.list_projects()
-        items: list[str] = []
-        for p in projects:
-            items.append(f"{p['name']}  ({p['git_url']})")
-        items.append("新建项目 | New Project")
-        items.append("返回 | Back")
+        items: list[str] = [f"{p['name']}  ({p['git_url']})" for p in projects]
+        items.append("新建项目" if zh else "New Project")
+        items.append("返回" if zh else "Back")
 
-        idx = _menu("管理项目 | Manage Projects", items)
+        title = "管理项目" if zh else "Manage Projects"
+        idx = _menu(title, items)
         if idx is None or idx == len(items) - 1:
             return
         elif idx == len(items) - 2:
