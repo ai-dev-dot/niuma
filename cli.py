@@ -393,25 +393,17 @@ def _create_project() -> None:
             print()
 
         # 播种凭据 — 不管 helper 是刚配的还是早就配的
-        print("  Step 3: 输入账号凭据（仅此一次，保存后自动使用）")
-        print(f"  用户名: 你的 {service} 用户名")
-        if service == "GitHub":
-            print(f"  密码:   Personal Access Token（不是登录密码！）")
-        elif service in ("GitLab", "Gitee"):
-            print(f"  密码:   个人访问令牌（不是登录密码！）")
+        print("  Step 3: 保存访问凭据（仅此一次）")
+        print(f"  GitHub Token 需要 repo 权限: https://github.com/settings/tokens")
         print()
 
-        git_username = _ask_text(f"  {service} 用户名 | Username")
-        if not git_username:
-            print("  已取消 | Cancelled.")
-            _wait()
-            return
-
-        git_token = _ask_secret(f"  Token / 密码（输入时不回显）| Token (hidden)")
+        git_token = _ask_secret(f"  Token（输入时不回显）")
         if not git_token:
-            print("  已取消 | Cancelled.")
+            print("  已取消")
             _wait()
             return
+        # GitHub PAT 验证时用户名任意，用 token 即可
+        git_username = "token"
 
         ok, msg = project_manager.seed_git_credentials(host, git_username, git_token)
         if ok:
@@ -651,15 +643,13 @@ def _setup_git_credentials(repo_path: str | Path) -> None:
                 capture_output=True, text=True)
         print(f"  [OK] credential.helper = store")
 
-    print(f"  {'输入 {service} 凭据' if zh else f'Enter {service} credentials'}:")
-    username = _ask_text(f"  {'用户名' if zh else 'Username'}")
-    if not username:
-        return
+    print(f"  {'输入 GitHub Token' if zh else 'Enter GitHub Token'}:")
+    print(f"  (https://github.com/settings/tokens — {'需要 repo 权限' if zh else 'needs repo scope'})")
     token = _ask_secret(f"  Token")
     if not token:
         return
 
-    ok, msg = project_manager.seed_git_credentials(host, username, token)
+    ok, msg = project_manager.seed_git_credentials(host, "token", token)
     if ok:
         print(f"  [OK] {msg}")
     else:
