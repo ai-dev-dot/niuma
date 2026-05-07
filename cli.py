@@ -60,17 +60,16 @@ def _check_first_run() -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def _main_menu() -> None:
-    lang = config.get_lang()
-    zh = lang == "zh"
-    items = [
-        "配置强模型" if zh else "Configure Strong Model",
-        "配置弱模型" if zh else "Configure Weak Model",
-        "管理项目" if zh else "Manage Projects",
-        ("语言/Lang: 中文" if zh else "Language: English"),
-        "退出" if zh else "Exit",
-    ]
     while True:
+        zh = config.get_lang() == "zh"
         title = "牛马 Niuma" if zh else "Niuma"
+        items = [
+            "配置强模型" if zh else "Configure Strong Model",
+            "配置弱模型" if zh else "Configure Weak Model",
+            "管理项目" if zh else "Manage Projects",
+            ("语言/Lang: 中文" if zh else "Language: English"),
+            "退出" if zh else "Exit",
+        ]
         idx = _menu(title, items)
         if idx is None or idx == 4:
             msg = "再见。" if zh else "Goodbye."
@@ -83,11 +82,9 @@ def _main_menu() -> None:
         elif idx == 2:
             _projects_menu()
         elif idx == 3:
-            # 切换语言
             new_lang = "en" if zh else "zh"
             config.set_lang(new_lang)
-            # 重建菜单
-            break
+            # 循环自然重建菜单
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -905,14 +902,6 @@ def _menu(title: str, options: list[str]) -> int | None:
         _title(title)
         for i, opt in enumerate(options):
             if i == idx:
-                print(f"  \033[7m {i+1}. {opt} \033[0m")
-            else:
-                print(f"  {i+1}. {opt}")
-        print()
-        print("  ↑↓/Tab 导航 | 数字选择 | Enter 确认 | ESC 返回")
-        for i, opt in enumerate(options):
-            if i == idx:
-                # ANSI 反转色高亮
                 print(f"  \033[7m {i+1}. {opt} \033[0m")
             else:
                 print(f"  {i+1}. {opt}")
