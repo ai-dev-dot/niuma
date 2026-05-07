@@ -106,11 +106,11 @@ def call(
     if max_tokens > 0:
         body_data["max_tokens"] = max_tokens
 
-    # DeepSeek reasoning: 最强 max 模式
+    # DeepSeek reasoning: max 模式，但限制推理长度防止超时
     _is_ds = "deepseek" in model.lower() or "deepseek" in base_url.lower()
     if _is_ds:
         body_data["reasoning_effort"] = "max"
-        body_data["thinking"] = {"type": "enabled"}
+        body_data["thinking"] = {"type": "enabled", "budget_tokens": 4096}
 
     body = json.dumps(body_data).encode("utf-8")
 
