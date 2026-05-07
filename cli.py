@@ -54,7 +54,7 @@ def _main_menu() -> None:
         print("  4. 退出 | Exit")
         print()
 
-        choice = _ask("请选择 | Select [1-4]", "1")
+        choice = _ask("请选择 | Select [1-4, ESC=退出]", "1", esc="4")
         if choice == "1":
             _config_menu("strong")
         elif choice == "2":
@@ -666,7 +666,7 @@ def _clarify_and_run(project: dict) -> None:
             for line in summary.strip().split("\n"):
                 print(f"  {line}")
             print()
-            confirm = _ask("  确认无误？(Y/n，n=继续澄清)", "Y").lower()
+            confirm = _ask("  确认无误？(Y/n/ESC=取消)", "Y", esc="n").lower()
             if confirm in ("y", "yes", ""):
                 break
             else:
@@ -845,10 +845,72 @@ def _title(text: str) -> None:
     print()
 
 
-def _ask(prompt: str, default: str = "") -> str:
-    """显示提示并读取用户输入。"""
-    result = input(f"  {prompt}: ").strip()
-    return result if result else default
+def _getch() -> str:
+    """读取单个按键（跨平台）。ESC 返回 '\x1b'。"""
+    if os.name == "nt":
+        import msvcrt
+        ch = msvcrt.getch()
+        if ch == b'\xe0':  # Windows 扩展键前缀
+            ch = msvcrt.getch()
+        return ch.decode("utf-8", errors="replace") if isinstance(ch, bytes) else ch
+    else:
+        import tty, termios
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+            if ch == "\x1b":
+                # 检查是否跟了 [ (箭头键序列)
+                rest = ""
+                for _ in range(2):
+                    c = sys.stdin.read(1)
+                    if not c:
+                        break
+                    rest += c
+                if rest:
+                    ch += rest
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def _input_line(prompt: str, default: str = "") -> str | None:
+    """逐字符读取输入。ESC 返回 None（表示取消），Enter 返回字符串。"""
+    sys.stdout.write(f"  {prompt}: ")
+    sys.stdout.flush()
+    chars: list[str] = []
+    while True:
+        ch = _getch()
+        if ch == "\x1b":  # ESC = 取消
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            return None
+        elif ch in ("\r", "\n"):
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            result = "".join(chars).strip()
+            return result if result else default
+        elif ch in ("\x7f", "\x08"):  # Backspace
+            if chars:
+                chars.pop()
+                sys.stdout.write("\b \b")
+                sys.stdout.flush()
+        elif len(ch) == 1 and ord(ch) >= 32:  # 可打印字符
+            chars.append(ch)
+            sys.stdout.write(ch)
+            sys.stdout.flush()
+
+
+_ESC = object()  # ESC 键取消的标记
+
+
+def _ask(prompt: str, default: str = "", esc: str = "") -> str:
+    """显示提示并读取用户输入。ESC=取消，esc 参数为 ESC 时的返回值。"""
+    result = _input_line(prompt, default)
+    if result is None:
+        return esc if esc else default  # ESC 时: 有 esc 用 esc, 否则用 default
+    return result
 
 
 def _ask_secret(prompt: str) -> str:
