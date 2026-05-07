@@ -1,5 +1,7 @@
 # 牛马 (Niuma)
 
+> 榨干所有闲置的硬件资源，不浪费 1 个 token。
+
 > 闲置的 2GB 云服务器 + 用不完的弱模型 token 套餐 = 一个 AI 开发团队
 
 [English](README.md) | [中文](README.zh-CN.md)
