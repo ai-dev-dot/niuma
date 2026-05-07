@@ -10,6 +10,8 @@ import llm
 import sandbox
 from models import DAGNode, NodeResult, NodeStatus, SandboxResult
 
+_PROJECT_ROOT = Path(__file__).resolve().parent
+
 
 def execute_node(node: DAGNode, completed_context: dict[str, str], task_id: str = "", review_feedback: str = "", verbose: bool = False) -> NodeResult:
     """在沙箱中执行单个 DAG 节点，弱模型循环修复直到测试通过或超限。
@@ -203,8 +205,27 @@ def _compile_check(code: str, lang: str, verbose: bool = False) -> bool:
         except SyntaxError:
             return False
     elif lang == "typescript":
-        # TypeScript 不做编译前检查——Jest 自己会编译，语法错会被沙箱捕获
-        return True
+        import subprocess as _sp, tempfile as _tmp, shutil as _sh
+        npx = _sh.which("npx") or _sh.which("npx.cmd")
+        if not npx:
+            return True  # npx 不可用时放行
+        d = _tmp.mkdtemp(prefix="niuma_tsc_")
+        try:
+            f = Path(d) / "check.ts"
+            f.write_text(code, encoding="utf-8")
+            r = _sp.run(
+                [npx, "--no-install", "tsc", "--noEmit",
+                 "--target", "ES2020", "--module", "commonjs",
+                 "--lib", "ES2020", "--strict", "false",
+                 "--skipLibCheck", str(f)],
+                capture_output=True, text=True, timeout=15,
+                cwd=str(_PROJECT_ROOT),
+            )
+            return r.returncode == 0
+        except Exception:
+            return False
+        finally:
+            _sh.rmtree(d, ignore_errors=True)
     return True
 
 
