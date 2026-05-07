@@ -546,75 +546,42 @@ def _git_menu(project: dict) -> None:
         return
 
     current_branch = project_manager.git_run(proj_path, ["branch", "--show-current"], check=False).strip()
+    remote = project_manager.git_run(proj_path, ["remote", "get-url", "origin"], check=False)
+    title = f"Git — {project['name']}" if zh else f"Git — {project['name']}"
 
-    # 构建操作选项
     items = []
     if current_branch.startswith("niuma"):
         items.append(f"Push {current_branch} {'到远程' if zh else 'to remote'}")
     items.append("配置凭据" if zh else "Configure Credentials")
     items.append("返回" if zh else "Back")
 
-    n = len(items)
-    idx = 0
     while True:
-        _clear()
-        remote = project_manager.git_run(proj_path, ["remote", "get-url", "origin"], check=False)
-        title = f"Git — {project['name']}" if zh else f"Git — {project['name']}"
-        _title(title)
-        print(f"  Remote: {remote}")
-        print(f"  {'当前分支' if zh else 'Branch'}: {current_branch}")
-        print(f"  {'-'*45}")
+        # 构建 header: 日志内容，每次循环刷新
         log_lines = project_manager.get_branch_log(proj_path, current_branch)
-        if log_lines:
-            for line in log_lines.splitlines():
-                print(f"  {line}")
-        else:
-            print(f"  ({'无提交记录' if zh else 'no commits'})")
-        print()
-        # 操作选项（Tab 导航）
-        for i, opt in enumerate(items):
-            if i == idx:
-                print(f"  \033[7m {i+1}. {opt} \033[0m")
+        if not log_lines:
+            log_lines = f"  ({'无提交记录' if zh else 'no commits'})"
+        header = f"Remote: {remote}\n{'当前分支' if zh else 'Branch'}: {current_branch}\n{'-'*45}\n{log_lines}"
+
+        idx = _menu(title, items, header=header)
+        if idx is None or idx == len(items) - 1:
+            return
+        elif idx == len(items) - 2:
+            _setup_git_credentials(proj_path)
+        elif idx == 0 and current_branch.startswith("niuma"):
+            proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
+            print(f"  Pushing {current_branch} → {remote} ...")
+            ok, msg = project_manager.push_branch(proj_path, current_branch, proxy=proxy)
+            if ok:
+                print(f"  [OK] Push 完成" + (f" — {msg}" if msg else ""))
+                project_manager.switch_branch(proj_path, "main")
+                project_manager.delete_task_branch(proj_path, current_branch)
+                print(f"  已切回 main，本地分支已清理")
+                _wait()
+                return
             else:
-                print(f"  {i+1}. {opt}")
-        print()
-        print("  ↑↓/Tab 导航 | Enter 确认 | ESC 返回")
-
-        ch = _getch()
-        if ch == "\x1b":
-            return
-        elif ch in ("\r", "\n"):
-            break
-        elif ch == "\t" or ch == "DOWN":
-            idx = (idx + 1) % n
-        elif ch == "SHTAB" or ch == "UP":
-            idx = (idx - 1) % n
-        elif ch.isdigit() and 1 <= int(ch) <= n:
-            idx = int(ch) - 1
-
-    back_idx = len(items) - 1
-    cred_idx = len(items) - 2
-
-    if idx == back_idx:
-        return
-    elif idx == cred_idx:
-        _setup_git_credentials(proj_path)
-    elif idx == 0 and current_branch.startswith("niuma"):
-        remote = project_manager.git_run(proj_path, ["remote", "get-url", "origin"], check=False)
-        proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
-        print(f"  Pushing {current_branch} → {remote} ...")
-        ok, msg = project_manager.push_branch(proj_path, current_branch, proxy=proxy)
-        if ok:
-            print(f"  [OK] Push 完成" + (f" — {msg}" if msg else ""))
-            project_manager.switch_branch(proj_path, "main")
-            project_manager.delete_task_branch(proj_path, current_branch)
-            print(f"  已切回 main，本地分支已清理")
-            _wait()
-            return
-        else:
-            print(f"  [!!] Push 失败 — {msg}")
-            print(f"  请检查凭据后重试")
-            _wait()
+                print(f"  [!!] Push 失败 — {msg}")
+                print(f"  请检查凭据后重试")
+                _wait()
 
 
 def _setup_git_credentials(repo_path: str | Path) -> None:
@@ -936,14 +903,20 @@ def _getch() -> str:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
-def _menu(title: str, options: list[str]) -> int | None:
+def _menu(title: str, options: list[str], header: str = "") -> int | None:
     """通用菜单组件。支持 ↑↓/Tab 导航、数字选择、Enter 确认、ESC 返回。
+    header: 在选项上方显示的静态内容（如 Git 日志），不参与导航。
     返回选中的索引 (0-based)，ESC 返回 None。"""
     n = len(options)
     idx = 0
+    header_lines = header.splitlines() if header else []
     while True:
         _clear()
         _title(title)
+        for line in header_lines:
+            print(f"  {line}")
+        if header_lines:
+            print()
         for i, opt in enumerate(options):
             if i == idx:
                 print(f"  \033[7m {i+1}. {opt} \033[0m")
@@ -953,13 +926,13 @@ def _menu(title: str, options: list[str]) -> int | None:
         print("  ↑↓/Tab 导航 | 数字选择 | Enter 确认 | ESC 返回")
 
         ch = _getch()
-        if ch == "\x1b":  # ESC
+        if ch == "\x1b":
             return None
-        elif ch in ("\r", "\n"):  # Enter
+        elif ch in ("\r", "\n"):
             return idx
-        elif ch == "\t":  # Tab
+        elif ch == "\t":
             idx = (idx + 1) % n
-        elif ch == "SHTAB":  # Shift+Tab
+        elif ch == "SHTAB":
             idx = (idx - 1) % n
         elif ch == "UP":
             idx = (idx - 1) % n
@@ -968,10 +941,7 @@ def _menu(title: str, options: list[str]) -> int | None:
         elif ch.isdigit():
             num = int(ch)
             if 1 <= num <= n:
-                idx = num - 1  # 跳到对应选项
-            elif num == n + 1 and n > 0:
-                pass  # 可选: 处理后一个数字
-        # 其他按键忽略，重新渲染
+                idx = num - 1
 
 
 def _input_line(prompt: str, default: str = "") -> str | None:
