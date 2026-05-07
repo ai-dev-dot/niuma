@@ -877,9 +877,9 @@ def _getch() -> str:
             ch = sys.stdin.read(1)
             if ch == "\x1b":
                 import time as _time
-                _time.sleep(0.02)  # 等 SSH 缓冲到达
+                _time.sleep(0.05)  # 等 SSH 缓冲到达
                 rest = ""
-                while select.select([sys.stdin], [], [], 0.2)[0]:
+                while select.select([sys.stdin], [], [], 0.5)[0]:
                     c = sys.stdin.read(1)
                     if not c:
                         break
