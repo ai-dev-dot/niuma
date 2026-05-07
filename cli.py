@@ -257,19 +257,22 @@ def _projects_menu() -> None:
             print("  (暂无项目) | (no projects yet)")
             print()
 
+        new_idx = len(projects) + 1
+        back_idx = len(projects) + 2
+
         for i, p in enumerate(projects, 1):
             print(f"  {i}. {p['name']}")
             print(f"     {p['git_url']}")
             print()
 
-        print(f"  N. 新建项目 | New Project")
-        print(f"  B/ESC. 返回 | Back (ESC)")
+        print(f"  {new_idx}. 新建项目 | New Project")
+        print(f"  {back_idx}. 返回 | Back (ESC)")
         print()
 
-        choice = _ask("请选择 | Select [N=新建, ESC/B=返回]", "B").lower()
-        if choice == "b":
+        choice = _ask(f"请选择 | Select [1-{back_idx}, ESC=返回]", str(back_idx))
+        if choice == str(back_idx):
             return
-        elif choice == "n":
+        elif choice == str(new_idx):
             _create_project()
         else:
             try:
