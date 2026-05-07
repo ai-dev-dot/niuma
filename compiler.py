@@ -103,13 +103,14 @@ JSON 格式: { "nodes": [...] }
   - params 格式: [{"name": "参数名", "type": "类型"}, ...]
   - methods 格式: [{"name": "方法名", "params": [...], "return_type": "类型"}, ...]
 - contract: { preconditions, postconditions, invariants } 每个都是字符串数组
-- test_skeleton: 字符串，独立可执行的测试代码。可以通过 from <依赖节点id> import <函数名> 导入依赖节点的函数（依赖节点的代码会作为独立文件存在于沙箱中）。测试代码末尾加 if __name__ == '__main__': 调用测试函数并 print('ALL TESTS PASSED')。
+- test_skeleton: 字符串，独立可执行的测试代码。沙箱会将每个节点（包括本节点和依赖节点）的代码作为独立源文件放在同一目录下，文件名为 `{node_id}.{ext}`。因此测试代码可以通过目标语言的模块系统引用这些节点。测试框架会按命名约定自动发现并执行测试。
 - max_iterations: 整数，默认5
 - dependencies: 字符串数组，依赖的 node_id 列表
 
 约束:
 - language="typescript" 或 "python"；allowed_imports 仅标准库；最多5个节点
 - **不同性质的职责要分开**（数据存储、调度逻辑、对外接口各自成节点）
+- **test_skeleton 只能引用本节点或已声明的依赖节点**（沙箱中只有这些源文件）
 - 2节点示例只是一个参考模式。简单任务可以单节点，复杂任务合理拆分
 
 === 示例：2节点分解（任务: "实现一个栈，支持 push/pop/peek/size"） ===
@@ -290,6 +291,15 @@ def _validate_dag(dag: DAG) -> list[str]:
         for dep_id in node.dependencies:
             if dep_id not in node_ids:
                 errors.append(f"{prefix}依赖未知节点 '{dep_id}'")
+
+        # 校验 test_skeleton 中引用的节点 ID：只能引用自己或已声明的依赖
+        valid_modules = {node.node_id} | set(node.dependencies)
+        for other_id in node_ids:
+            if other_id not in valid_modules and other_id in node.test_skeleton:
+                errors.append(
+                    f"{prefix}test_skeleton 引用了未声明的节点 '{other_id}'——"
+                    f"可以引用: 本节点 ({node.node_id}) 或依赖 ({', '.join(node.dependencies) or '无'})"
+                )
 
     # 检查循环依赖
     try:
