@@ -72,6 +72,7 @@ def call(
     max_retries: int | None = None,
     messages: list[dict] | None = None,
     log_callback=None,
+    reasoning: bool = True,  # DeepSeek 推理模式开关
 ) -> LLMResponse:
     """调用 LLM API，含指数退避重试。每次调用自动写全量日志到 _log_path。"""
 
@@ -106,8 +107,8 @@ def call(
     if max_tokens > 0:
         body_data["max_tokens"] = max_tokens
 
-    # DeepSeek reasoning: 最强 max 模式
-    _is_ds = "deepseek" in model.lower() or "deepseek" in base_url.lower()
+    # DeepSeek reasoning: 最强 max 模式（仅 reasoning=True 时启用）
+    _is_ds = reasoning and ("deepseek" in model.lower() or "deepseek" in base_url.lower())
     if _is_ds:
         body_data["reasoning_effort"] = "max"
         body_data["thinking"] = {"type": "enabled"}
@@ -262,6 +263,7 @@ def call_strong_messages(messages: list[dict], max_tokens: int = 0) -> "LLMRespo
         base_url=cfg["base_url"],
         max_tokens=max_tokens,
         messages=messages,
+        reasoning=False,  # 对话澄清不需要深度推理
     )
 
 
