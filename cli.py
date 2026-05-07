@@ -876,26 +876,26 @@ def _getch() -> str:
             tty.setraw(fd)
             ch = sys.stdin.read(1)
             if ch == "\x1b":
-                # 先看下一个字符是不是 [（箭头键序列的前缀）
-                if select.select([sys.stdin], [], [], 0.1)[0]:
-                    c2 = sys.stdin.read(1)
-                    if c2 == "[":
-                        # 是箭头键：等最后的字母
-                        if select.select([sys.stdin], [], [], 0.3)[0]:
-                            c3 = sys.stdin.read(1)
-                            if c3 == "A": return "UP"
-                            if c3 == "B": return "DOWN"
-                            if c3 == "Z": return "SHTAB"
-                            return f"\x1b[{c3}"
-                        return "\x1b["  # 超时，返回部分序列
-                    # 不是 [，可能是 Shift+Tab 或其他转义
-                    if c2 == "O":
-                        if select.select([sys.stdin], [], [], 0.1)[0]:
-                            c3 = sys.stdin.read(1)
-                            return f"\x1bO{c3}"
-                        return "\x1bO"
-                    return f"\x1b{c2}" if c2 else "\x1b"
-                return "\x1b"  # 裸 ESC
+                # 读完缓冲区内所有后续字符（SSH 下可能分段到达）
+                import time as _time
+                _time.sleep(0.1)  # 等 SSH 缓冲聚合
+                rest = ""
+                deadline = _time.time() + 0.4
+                while _time.time() < deadline:
+                    if select.select([sys.stdin], [], [], 0.05)[0]:
+                        c = sys.stdin.read(1)
+                        if c:
+                            rest += c
+                            deadline = _time.time() + 0.1  # 每收到一个字符重置倒计时
+                        else:
+                            break
+                    else:
+                        break  # 超时无数据，结束读取
+                if rest == "[A": return "UP"
+                if rest == "[B": return "DOWN"
+                if rest == "[Z": return "SHTAB"
+                if rest: return f"\x1b{rest}"
+                return "\x1b"  # 裸 ESC — 确认是用户按了 ESC
             if ch == "\t": return "\t"
             return ch
         finally:
