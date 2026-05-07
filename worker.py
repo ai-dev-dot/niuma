@@ -45,9 +45,9 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], task_id: str 
             continue
 
         result.generated_code = code
-        # 构建依赖文件：已完成的节点代码作为独立文件，供 import 使用
+        # 构建沙箱文件：当前节点 + 已完成依赖节点，均作为独立 .py/.ts 文件供 import
         ext = "py" if node.signature.language == "python" else "ts"
-        ctx_files: dict[str, str] = {}
+        ctx_files: dict[str, str] = {f"{node.node_id}.{ext}": code}
         if completed_context:
             for dep_id, dep_code in completed_context.items():
                 ctx_files[f"{dep_id}.{ext}"] = dep_code
