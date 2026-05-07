@@ -845,8 +845,8 @@ def _create_task_file(project: dict) -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def _clear() -> None:
-    """清屏。"""
-    os.system("cls" if os.name == "nt" else "clear")
+    """清屏（ANSI 转义，不闪烁）。"""
+    print("\033[2J\033[H", end="", flush=True)
 
 
 def _title(text: str) -> None:
