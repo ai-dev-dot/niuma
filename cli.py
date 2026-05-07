@@ -636,13 +636,11 @@ def _clarify_and_run(project: dict) -> None:
         print()
 
     print("  请描述你想实现的功能（自然语言）:")
-    print("  (ESC 返回)")
+    print("  (直接回车=返回)")
     print()
 
-    initial = _input_line("  > ")
-    if initial is None:  # ESC
-        return
-    if not initial.strip():
+    initial = input("  > ").strip()
+    if not initial:
         return
 
     _clear()
@@ -845,8 +843,11 @@ def _create_task_file(project: dict) -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def _clear() -> None:
-    """清屏（ANSI 转义，不闪烁）。"""
-    print("\033[2J\033[H", end="", flush=True)
+    """清屏。"""
+    if os.name == "nt":
+        os.system("cls")
+    else:
+        os.system("clear")
 
 
 def _title(text: str) -> None:
@@ -856,120 +857,42 @@ def _title(text: str) -> None:
     print()
 
 
-def _getch() -> str:
-    """读取单个按键（跨平台）。ESC→\x1b, Tab→\t, 方向键→UP/DOWN。"""
-    if os.name == "nt":
-        import msvcrt
-        ch = msvcrt.getch()
-        if ch == b'\xe0':
-            ch2 = msvcrt.getch()
-            if ch2 == b'H': return "UP"
-            if ch2 == b'P': return "DOWN"
-            return ch2.decode("utf-8", errors="replace")
-        if ch == b'\t': return "\t"
-        return ch.decode("utf-8", errors="replace") if isinstance(ch, bytes) else ch
-    else:
-        import tty, termios, select, time as _time
-        fd = sys.stdin.fileno()
-        old = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            ch = sys.stdin.read(1)
-            if ch == "\x1b":
-                # 只响应 Shift+Tab，箭头键吞掉
-                r, _, _ = select.select([sys.stdin], [], [], 0.5)
-                if r:
-                    c2 = sys.stdin.read(1)
-                    if c2 == "[":
-                        r2, _, _ = select.select([sys.stdin], [], [], 0.1)
-                        if r2:
-                            c3 = sys.stdin.read(1)
-                            if c3 == "Z": return "SHTAB"
-                            return ""  # 箭头键，吞掉
-                        return ""  # 不完整的箭头序列，吞掉
-                    return ""  # 非[序列，吞掉
-                return "\x1b"  # 裸 ESC — 没有后续字符
-            if ch == "\t": return "\t"
-            return ch
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+# 注意：牛马不使用 raw terminal 模式。
+# 原因见 docs/design-20260505.md "TUI 输入方案选型"
+# 简言之：网页终端(阿里云控制台)下 raw 模式的转义序列解析不可靠，
+# input() 是最通用的方案。
 
 
-def _menu(title: str, options: list[str], header: str = "") -> int | None:
-    """通用菜单组件。支持 ↑↓/Tab 导航、数字选择、Enter 确认、ESC 返回。
-    header: 在选项上方显示的静态内容（如 Git 日志），不参与导航。
-    返回选中的索引 (0-based)，ESC 返回 None。"""
+def _menu(title: str, options: list[str], header: str = "") -> int:
+    """菜单。输入数字选择，直接回车=最后一个选项（通常是返回）。
+    header: 在选项上方显示的静态内容（如 Git 日志）。
+    返回选中的索引 (0-based)。"""
     n = len(options)
-    idx = 0
-    header_lines = header.splitlines() if header else []
-    while True:
-        _clear()
-        _title(title)
-        for line in header_lines:
-            print(f"  {line}")
-        if header_lines:
-            print()
-        for i, opt in enumerate(options):
-            if i == idx:
-                print(f"  \033[7m {i+1}. {opt} \033[0m")
-            else:
-                print(f"  {i+1}. {opt}")
+    _clear()
+    _title(title)
+    for line in (header.splitlines() if header else []):
+        print(f"  {line}")
+    if header:
         print()
-        print("  Tab 导航 | 数字选择 | Enter 确认 | ESC 返回 | ⚠请勿使用↑↓键")
-
-        ch = _getch()
-        if ch == "\x1b":
-            return None
-        elif ch in ("\r", "\n"):
+    for i, opt in enumerate(options):
+        print(f"  {i+1}. {opt}")
+    print()
+    choice = input(f"  输入数字 [1-{n}], 回车=返回: ").strip()
+    if not choice:
+        return n - 1
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < n:
             return idx
-        elif ch == "\t":
-            idx = (idx + 1) % n
-        elif ch == "SHTAB":
-            idx = (idx - 1) % n
-        elif ch == "":  # 吞掉的箭头键，忽略
-            pass
-        elif ch.isdigit():
-            num = int(ch)
-            if 1 <= num <= n:
-                idx = num - 1
-
-
-def _input_line(prompt: str, default: str = "") -> str | None:
-    """逐字符读取输入。ESC 返回 None（表示取消），Enter 返回字符串。"""
-    sys.stdout.write(f"  {prompt}: ")
-    sys.stdout.flush()
-    chars: list[str] = []
-    while True:
-        ch = _getch()
-        if ch == "\x1b":  # ESC = 取消
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-            return None
-        elif ch in ("\r", "\n"):
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-            result = "".join(chars).strip()
-            return result if result else default
-        elif ch in ("\x7f", "\x08"):  # Backspace
-            if chars:
-                chars.pop()
-                sys.stdout.write("\b \b")
-                sys.stdout.flush()
-        elif len(ch) == 1 and ord(ch) >= 32:  # 可打印字符
-            chars.append(ch)
-            sys.stdout.write(ch)
-            sys.stdout.flush()
-
-
-_ESC = object()  # ESC 键取消的标记
+    except ValueError:
+        pass
+    return n - 1
 
 
 def _ask(prompt: str, default: str = "", esc: str = "") -> str:
-    """显示提示并读取用户输入。ESC=取消，esc 参数为 ESC 时的返回值。"""
-    result = _input_line(prompt, default)
-    if result is None:
-        return esc if esc else default  # ESC 时: 有 esc 用 esc, 否则用 default
-    return result
+    """显示提示并读取用户输入。空输入返回 default。"""
+    result = input(f"  {prompt}: ").strip()
+    return result if result else default
 
 
 def _ask_secret(prompt: str) -> str:
@@ -980,11 +903,9 @@ def _ask_secret(prompt: str) -> str:
 
 
 def _ask_text(prompt: str, default: str = "") -> str:
-    """请求用户输入文本，显示默认值。ESC 返回空字符串。"""
-    full_prompt = f"{prompt} [{default}]" if default else prompt
-    result = _input_line(full_prompt)
-    if result is None:
-        return ""
+    """请求用户输入文本，显示默认值。"""
+    p = f"{prompt} [{default}]" if default else prompt
+    result = input(f"  {p}: ").strip()
     return result if result else default
 
 
