@@ -653,11 +653,22 @@ def _clarify_and_run(project: dict) -> None:
 
     _clear()
     _title(f"新建任务 | New Task — {project['name']}")
+
+    # 显示当前任务分支（如果有的话），提醒将被清理
+    old_branches = _pm.list_task_branches(proj_path)
+    if old_branches:
+        print(f"  ⚠ 当前存在任务分支: {', '.join(old_branches)}")
+        print(f"  新建任务将自动删除以上旧分支（请先 push 保存）")
+        print()
+
     print("  请描述你想实现的功能（自然语言）:")
+    print("  (ESC 返回)")
     print()
 
-    initial = _ask_text("  > ")
-    if not initial:
+    initial = _input_line("  > ")
+    if initial is None:  # ESC
+        return
+    if not initial.strip():
         return
 
     _clear()
@@ -947,13 +958,12 @@ def _ask_secret(prompt: str) -> str:
 
 
 def _ask_text(prompt: str, default: str = "") -> str:
-    """请求用户输入文本，显示默认值。"""
-    if default:
-        result = input(f"  {prompt} [{default}]: ").strip()
-        return result if result else default
-    else:
-        result = input(f"  {prompt}: ").strip()
-        return result
+    """请求用户输入文本，显示默认值。ESC 返回空字符串。"""
+    full_prompt = f"{prompt} [{default}]" if default else prompt
+    result = _input_line(full_prompt)
+    if result is None:
+        return ""
+    return result if result else default
 
 
 def _mask(value: str) -> str:
