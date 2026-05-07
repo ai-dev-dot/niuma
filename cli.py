@@ -577,7 +577,6 @@ def _git_menu(project: dict) -> None:
         _title(f"Git 记录 | Git Log — {project['name']}")
 
         current_branch = project_manager.git_run(proj_path, ["branch", "--show-current"], check=False).strip()
-        branches = project_manager.list_task_branches(proj_path)
 
         # 显示当前分支的 git log
         print(f"  当前分支: {current_branch}")
@@ -590,55 +589,24 @@ def _git_menu(project: dict) -> None:
             print("  (无提交记录)")
         print()
 
-        # 任务分支列表
-        if branches:
-            print(f"  任务分支 ({len(branches)}):")
-            for i, b in enumerate(branches, 1):
-                marker = " ← 当前" if b == current_branch else ""
-                print(f"    {i}. {b}{marker}")
-            print()
-            print(f"  P. Push {current_branch} 到远程")
-            other_branches = [b for b in branches if b != current_branch]
-            if other_branches:
-                print(f"  D. 删除其他 {len(other_branches)} 个分支")
+        # Push 选项（当前是 niuma 分支时）
+        if current_branch.startswith("niuma"):
+            print(f"  P. Push {current_branch} 到远程 | Push to remote")
         print(f"  B/ESC. 返回")
         print()
 
         choice = _ask("请选择 | Select", "B").lower()
         if choice == "b":
             return
-        elif choice == "p" and branches:
-            target = current_branch if current_branch.startswith("niuma") else branches[0]
+        elif choice == "p" and current_branch.startswith("niuma"):
             proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
-            print(f"  Pushing {target}...")
-            ok, msg = project_manager.push_branch(proj_path, target, proxy=proxy)
+            print(f"  Pushing {current_branch}...")
+            ok, msg = project_manager.push_branch(proj_path, current_branch, proxy=proxy)
             if ok:
-                print(f"  [OK] Push 完成 | Done — {msg}" if msg else "  [OK] Push 完成 | Done")
+                print(f"  [OK] Push 完成 | Done" + (f" — {msg}" if msg else ""))
             else:
                 print(f"  [!!] Push 失败 | Failed: {msg}")
             _wait()
-        elif choice == "d" and other_branches:
-            _clear()
-            _title("删除旧分支 | Delete Old Branches")
-            for i, b in enumerate(other_branches, 1):
-                print(f"  {i}. {b}")
-            print()
-            print(f"  B/ESC. 返回")
-            print()
-            choice2 = _ask("选择要删除的分支编号 | Select branch number", "B")
-            if choice2 and choice2 not in ("b", "esc"):
-                try:
-                    idx = int(choice2) - 1
-                    if 0 <= idx < len(branches) and branches[idx] != current_branch:
-                        target = branches[idx]
-                        ok = project_manager.delete_task_branch(proj_path, target)
-                        if ok:
-                            print(f"  [OK] 已删除 {target}")
-                        else:
-                            print(f"  [!!] 删除失败")
-                        _wait()
-                except (ValueError, IndexError):
-                    pass
 
 
 def _clarify_and_run(project: dict) -> None:
