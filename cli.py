@@ -595,7 +595,9 @@ def _git_menu(project: dict) -> None:
                 print(f"    {i}. {b}{marker}")
             print()
             print(f"  P. Push {current_branch} 到远程")
-            print(f"  D. 删除旧分支")
+            other_branches = [b for b in branches if b != current_branch]
+            if other_branches:
+                print(f"  D. 删除其他 {len(other_branches)} 个分支")
         print(f"  B/ESC. 返回")
         print()
 
@@ -612,13 +614,11 @@ def _git_menu(project: dict) -> None:
             else:
                 print(f"  [!!] Push 失败 | Failed: {msg}")
             _wait()
-        elif choice == "d" and len(branches) > 1:
-            # 删除旧分支
+        elif choice == "d" and other_branches:
             _clear()
             _title("删除旧分支 | Delete Old Branches")
-            for i, b in enumerate(branches, 1):
-                if b != current_branch:
-                    print(f"  {i}. {b}")
+            for i, b in enumerate(other_branches, 1):
+                print(f"  {i}. {b}")
             print()
             print(f"  B/ESC. 返回")
             print()
