@@ -145,7 +145,7 @@ def _provider_setup(which: str, model_field: str) -> None:
         print(f"  C. 自定义（手动输入全部信息）| Custom (manual input)")
         if total_pages > 1:
             print(f"  N. 下一页 | Next Page")
-        print(f"  B. 返回 | Back")
+        print(f"  B/ESC. 返回 | Back")
         print()
 
         choice = _ask("请选择 | Select", "B").lower()
@@ -196,7 +196,7 @@ def _provider_detail(which: str, provider: dict, model_field: str) -> None:
     for i, m in enumerate(models, 1):
         print(f"  {i}. {m}")
     print(f"  M. 手动输入模型名 | Manual input")
-    print(f"  B. 返回 | Back")
+    print(f"  B/ESC. 返回 | Back")
     print()
 
     choice = _ask("请选择 | Select", "1").lower()
@@ -263,10 +263,10 @@ def _projects_menu() -> None:
             print()
 
         print(f"  N. 新建项目 | New Project")
-        print(f"  B. 返回 | Back")
+        print(f"  B/ESC. 返回 | Back (ESC)")
         print()
 
-        choice = _ask("请选择 | Select [N=新建/B=返回]", "B").lower()
+        choice = _ask("请选择 | Select [N=新建, ESC/B=返回]", "B").lower()
         if choice == "b":
             return
         elif choice == "n":
@@ -540,7 +540,7 @@ def _project_menu(project: dict) -> None:
         print("  3. 返回 | Back")
         print()
 
-        choice = _ask("请选择 | Select [1-3]", "3").lower()
+        choice = _ask("请选择 | Select [1-3, ESC=返回]", "3").lower()
         if choice == "1":
             _clarify_and_run(project)
         elif choice == "2":
@@ -592,7 +592,7 @@ def _git_menu(project: dict) -> None:
 
         if branches:
             print(f"  P. Push 当前分支到远程 | Push current branch to remote")
-        print(f"  B. 返回 | Back")
+        print(f"  B/ESC. 返回 | Back")
         print()
 
         choice = _ask("请选择 | Select", "B").lower()
@@ -737,7 +737,7 @@ def _run_task_in_project(project: dict) -> None:
     _title(f"运行任务 | Run Task — {project['name']}")
     for i, tf in enumerate(tsk_files, 1):
         print(f"  {i}. {tf.name}")
-    print(f"  B. 返回 | Back")
+    print(f"  B/ESC. 返回 | Back")
     print()
 
     choice = _ask("请选择 | Select", "B").lower()
