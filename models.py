@@ -113,6 +113,8 @@ class ReviewResult:
     passed: bool
     failed_nodes: list[str] = field(default_factory=list)
     suggestions: str = ""
+    score: int = 0
+    summary: str = ""
 
 
 @dataclass

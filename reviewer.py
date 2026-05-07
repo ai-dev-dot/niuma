@@ -77,9 +77,11 @@ DAG 结构:
 
 你必须只输出一个 JSON 对象，不要加任何解释或 markdown 标记：
 
-{{"verdict": "PASS"}}
+{{"verdict": "PASS", "score": 8, "summary": "一句话总结"}}
 或者
-{{"verdict": "FAIL", "failed_nodes": ["<节点ID>", ...], "suggestions": "<违规描述 + 修改建议>"}}"""
+{{"verdict": "FAIL", "score": 3, "failed_nodes": ["<节点ID>", ...], "suggestions": "<违规描述>", "summary": "一句话总结"}}
+
+score 是 1-10 整体质量评分。summary 是一句话（20字内）。"""
 
 
 def _parse_review(raw: str, node_results: list[NodeResult]) -> ReviewResult:
@@ -100,6 +102,8 @@ def _parse_review(raw: str, node_results: list[NodeResult]) -> ReviewResult:
                 passed=verdict == "PASS",
                 failed_nodes=data.get("failed_nodes", []),
                 suggestions=data.get("suggestions", ""),
+                score=data.get("score", 0),
+                summary=data.get("summary", ""),
             )
         except (_json.JSONDecodeError, KeyError):
             pass
@@ -131,7 +135,10 @@ def commit_review(result: ReviewResult, repo_path: str, task_id: str, task_desc:
     import project_manager as _pm
 
     status = "PASS" if result.passed else "FAIL"
-    content = f"# Review: {task_id}\n\n**Verdict:** {status}\n\n"
+    score_str = f" [{result.score}/10]" if result.score > 0 else ""
+    content = f"# Review: {task_id}\n\n**Verdict:** {status}{score_str}\n\n"
+    if result.summary:
+        content += f"**Summary:** {result.summary}\n\n"
     if result.suggestions:
         content += f"{result.suggestions}\n\n"
     if not result.passed:
@@ -139,13 +146,13 @@ def commit_review(result: ReviewResult, repo_path: str, task_id: str, task_desc:
         for nid in result.failed_nodes:
             content += f"- {nid}\n"
 
-    summary = task_desc.strip().replace("\n", " ")[:60] if task_desc else task_id
+    short_summary = result.summary if result.summary else task_desc.strip().replace("\n", " ")[:60]
     _pm.commit_file(
         repo_path,
         ".niuma/review.md",
         content,
         _pm.GIT_AUTHOR_REVIEWER,
-        f"review: {status} — {summary}",
+        f"review: {status}{score_str} — {short_summary}",
     )
     return str(Path(repo_path) / ".niuma" / "review.md")
 

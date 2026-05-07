@@ -271,6 +271,6 @@ def commit_node(node: DAGNode, result: NodeResult, repo_path: str) -> str:
         filepath,
         result.generated_code,
         _pm.GIT_AUTHOR_WORKER,
-        f"worker: implement {node.node_id} ({result.iteration_count} iterations)",
+        f"worker: {'PASS' if result.status.value == 'passed' else 'FAIL'} {node.node_id} ({result.iteration_count} iter)",
     )
     return filepath
