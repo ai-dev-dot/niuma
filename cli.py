@@ -95,7 +95,7 @@ def _config_menu(which: str) -> None:
         if choice == "1":
             _provider_setup(which, model_field)
         elif choice == "2":
-            new_key = _ask_text("API Key")
+            new_key = _ask_secret("API Key")
             if new_key:
                 config.set_model_config(which, api_key=new_key)
                 print("  [OK] 已更新 | Updated.")
@@ -181,7 +181,7 @@ def _provider_detail(which: str, provider: dict, model_field: str) -> None:
     print(f"  接口地址 | Base URL: {provider['base_url']}")
     print(f"  获取 Key | Get Key: {provider['key_hint']}")
     print()
-    key = _ask_text("API Key")
+    key = _ask_secret("API Key")
     if not key:
         print("  已取消 | Cancelled.")
         _wait()
@@ -229,7 +229,7 @@ def _manual_setup(which: str) -> None:
     _title("自定义配置 | Custom Setup")
 
     c = config.get_model_config(which)
-    key = _ask_text("API Key")
+    key = _ask_secret("API Key")
     if key:
         config.set_model_config(which, api_key=key)
     url = _ask_text("Base URL", c["base_url"])
@@ -401,7 +401,7 @@ def _create_project() -> None:
             _wait()
             return
 
-        git_token = _ask_text(f"  Token / 密码（输入时不回显，注意安全）| Token (hidden)")
+        git_token = _ask_secret(f"  Token / 密码（输入时不回显）| Token (hidden)")
         if not git_token:
             print("  已取消 | Cancelled.")
             _wait()
@@ -849,6 +849,13 @@ def _ask(prompt: str, default: str = "") -> str:
     """显示提示并读取用户输入。"""
     result = input(f"  {prompt}: ").strip()
     return result if result else default
+
+
+def _ask_secret(prompt: str) -> str:
+    """读取敏感输入（API Key / Token），不回显。"""
+    import getpass
+    result = getpass.getpass(f"  {prompt}: ").strip()
+    return result
 
 
 def _ask_text(prompt: str, default: str = "") -> str:
