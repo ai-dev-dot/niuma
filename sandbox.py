@@ -5,6 +5,7 @@ Runs AI-generated code + tests inside limited subprocesses."""
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -113,7 +114,7 @@ def _execute_python(
     test_file.write_text(f"{code}\n\n{test_code}\n", encoding="utf-8")
 
     return _run_subprocess(
-        ["python", "-m", "pytest", str(test_file), "-v", "--tb=short"],
+        [sys.executable, "-m", "pytest", str(test_file), "-v", "--tb=short"],
         cwd=tmpdir,
         cpu_timeout=cpu_timeout,
         memory_limit_mb=memory_limit_mb,

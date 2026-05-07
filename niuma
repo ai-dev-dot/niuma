@@ -3,14 +3,18 @@
 set -e
 cd "$(dirname "$0")"
 
+# 检测 Python（Ubuntu 用 python3，其他用 python）
+_PY=python
+command -v python3 >/dev/null 2>&1 && _PY=python3
+
 # 首次运行自动装依赖（Python + Node.js 双方面检查）
 _need_install=0
-python -m pytest --version >/dev/null 2>&1 || _need_install=1
+$_PY -m pytest --version >/dev/null 2>&1 || _need_install=1
 [ -d "node_modules" ] || _need_install=1
 
 if [ "$_need_install" -eq 1 ]; then
     echo "  安装依赖... | Installing dependencies..."
-    pip install -r requirements.txt -q 2>/dev/null || true
+    $_PY -m pip install -r requirements.txt -q 2>/dev/null || true
     npm install --silent 2>/dev/null || true
     echo "  [OK] 就绪 | Ready."
     echo
@@ -23,4 +27,4 @@ command -v jq >/dev/null 2>&1 || { echo "  [!!] jq 未安装 — JSON 校验需�
 command -v sqlite3 >/dev/null 2>&1 || { echo "  [!!] sqlite3 未安装 — 数据验证需要 | sudo apt-get install sqlite3"; _sys_ok=0; }
 [ "$_sys_ok" -eq 0 ] && echo "  (缺少的系统工具不影响基本功能，部分验证能力受限)" && echo
 
-python cli.py "$@"
+$_PY cli.py "$@"
