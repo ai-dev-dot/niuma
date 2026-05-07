@@ -171,6 +171,14 @@ def _cmd_doctor() -> None:
         else:
             check(label, False, f"未安装 | apt-get install {pkg}")
 
+    # Git 用户配置
+    git_user = _run_cmd(["git", "config", "user.name"])
+    git_email = _run_cmd(["git", "config", "user.email"])
+    check("Git user.name", bool(git_user.strip()), git_user.strip() or "未设置")
+    check("Git user.email", bool(git_email.strip()), git_email.strip() or "未设置")
+    if not git_user.strip() or not git_email.strip():
+        check("  → 修复", False, "git config --global user.name \"Niuma\" && git config --global user.email \"niuma@localhost\"")
+
     # Git 凭据
     import project_manager as _pm
     cred = _pm.check_git_credential_helper()

@@ -26,6 +26,12 @@ if [ "$_need_install" -eq 1 ]; then
     echo
 fi
 
+# 检查 git 用户配置
+_git_ok=1
+git config user.name >/dev/null 2>&1 || { echo "  [!!] git user.name 未设置 — 无法提交"; _git_ok=0; }
+git config user.email >/dev/null 2>&1 || { echo "  [!!] git user.email 未设置 — 无法提交"; _git_ok=0; }
+[ "$_git_ok" -eq 0 ] && echo "  修复: git config --global user.name \"Niuma\" && git config --global user.email \"niuma@localhost\"" && echo
+
 # 检查系统工具（首次运行时提示）
 _sys_ok=1
 command -v curl >/dev/null 2>&1 || { echo "  [!!] curl 未安装 — API 验证需要 | sudo apt-get install curl"; _sys_ok=0; }
