@@ -1,0 +1,17 @@
+{
+  "task_id": "code_fix_easy_01",
+  "dimension": "code_fix",
+  "difficulty": "easy",
+  "language": "python",
+  "prompt": "以下待办事项 CLI 工具有两个 bug：\n1. 不检查 sys.argv 长度，输入 `python app.py` 会崩溃\n2. `done` 命令不检查索引是否有效（越界崩溃）\n\n请修复代码。只输出修复后的完整代码，放在 ```python 代码块中。\n\n```python\nimport sys\nimport json, os\nFILE = 'tasks.json'\ndef load():\n    if os.path.exists(FILE):\n        return json.loads(open(FILE, encoding='utf-8').read())\n    return []\ndef save(tasks):\n    json.dump(tasks, open(FILE, 'w', encoding='utf-8'), ensure_ascii=False)\ntasks = load()\ncmd = sys.argv[1]\nif cmd == 'add':\n    tasks.append(sys.argv[2])\n    save(tasks)\n    print('OK')\nelif cmd == 'list':\n    for i, t in enumerate(tasks, 1):\n        print(f'{i}. {t}')\nelif cmd == 'done':\n    tasks.pop(int(sys.argv[2]) - 1)\n    save(tasks)\n    print('OK')\n```",
+  "judge": {"method": "cli"},
+  "test_cases": [
+    {"args": [], "expect_success": false, "contains_any": ["用法", "usage", "help", "帮助", "参数", "arg"]},
+    {"args": ["add", "买牛奶"], "contains_any": ["买牛奶", "OK", "ok"]},
+    {"args": ["add", "写作业"], "contains_any": ["写作业", "OK", "ok"]},
+    {"args": ["list"], "contains_all": ["买牛奶", "写作业"]},
+    {"args": ["done", "1"], "expect_success": true},
+    {"args": ["done", "99"], "expect_success": false, "contains_any": ["无效", "错误", "越界", "不存在", "invalid", "error", "range"]},
+    {"args": ["list"], "contains_all": ["写作业"], "contains_not": ["买牛奶"]}
+  ]
+}

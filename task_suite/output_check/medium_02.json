@@ -1,0 +1,9 @@
+{
+  "task_id": "output_check_medium_02",
+  "dimension": "output_check",
+  "difficulty": "medium",
+  "language": "text",
+  "prompt": "以下是一个图书 API 的 GET /books/1 响应。请判断这个响应是否正确，从以下维度逐一检查：HTTP 状态码、Content-Type、JSON 结构、字段完整性。回答 PASS 或 FAIL，如有问题逐一列出。\n\n请求: GET /books/1\n响应状态码: 200\n响应头: Content-Type: text/html\n响应体:\n```json\n{\"id\": 1, \"title\": \"三体\"}\n```\n\n预期: 返回 id=1 的图书完整信息（含 author 和 year 字段）。",
+  "judge": {"method": "keyword_match", "keyword_threshold": 1},
+  "keywords": ["FAIL", "fail", "Content-Type", "json", "author", "year", "缺少", "缺失", "不完整", "text/html", "字段"]
+}

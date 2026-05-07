@@ -16,4 +16,11 @@ if [ "$_need_install" -eq 1 ]; then
     echo
 fi
 
+# 检查系统工具（首次运行时提示）
+_sys_ok=1
+command -v curl >/dev/null 2>&1 || { echo "  [!!] curl 未安装 — API 验证需要 | sudo apt-get install curl"; _sys_ok=0; }
+command -v jq >/dev/null 2>&1 || { echo "  [!!] jq 未安装 — JSON 校验需要 | sudo apt-get install jq"; _sys_ok=0; }
+command -v sqlite3 >/dev/null 2>&1 || { echo "  [!!] sqlite3 未安装 — 数据验证需要 | sudo apt-get install sqlite3"; _sys_ok=0; }
+[ "$_sys_ok" -eq 0 ] && echo "  (缺少的系统工具不影响基本功能，部分验证能力受限)" && echo
+
 python cli.py "$@"

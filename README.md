@@ -11,8 +11,10 @@ A strong LLM acts as a **compiler** — it translates natural language tasks int
 A fleet of cheap, weak LLMs act as **workers** — they fill in the blanks, run tests, fix failures, and iterate
 until every contract is satisfied. The strong model only re-engages as a **reviewer**, checking the final output.
 
-The core idea: strong models are expensive per token but smart. Weak models are dumb but cheap enough
-to burn on trial-and-error loops. Niuma splits the work so each model does what it's best at.
+The core idea: strong models are expensive per token but smart. Weak models are cheap enough
+to burn on trial-and-error loops, and their real constraint is the **2 GB deployment environment** —
+not intelligence (they're API-called, Haiku/Flash tier). Niuma splits the work so each model
+does what it's best at, within the physical limits of trash hardware.
 
 ## Why
 
@@ -105,22 +107,23 @@ python -m pytest system_tests/ -v
 niuma/
   cli.py               # Interactive TUI menu (entry point)
   config.py             # Strong/weak model configuration management
-  project_manager.py    # Project create/open/delete workflows
+  project_manager.py    # Project create/open/delete + git credential setup
   compiler.py           # Strong model: natural language → typed DAG JSON
-  worker.py             # Weak model: generate → sandbox → fix → retry loop
-  reviewer.py           # Strong model: contract compliance audit
+  worker.py             # Weak model: code gen → compile check → sandbox → fix → retry
+  reviewer.py           # Strong model: structured JSON contract compliance audit
   sandbox.py            # Subprocess execution with resource limits
   llm.py                # OpenAI-compatible API client (exponential backoff)
   metrics.py            # JSONL metrics output
   models.py             # Shared dataclasses (DAGNode, SandboxResult, ...)
   main.py               # Pipeline orchestrator (compile → execute → review)
+  benchmark.py           # Weak model capability benchmark (18 real-app tasks)
+  task_suite/            # Benchmark task definitions (6 dimensions × 3 levels)
   dag_schema.json       # JSON Schema for DAG validation
-  requirements.txt      # Python dependencies
-  niuma                 # One-command launcher (bash)
+  requirements.txt      # Python dependencies (pytest, flask, requests)
+  niuma                 # One-command launcher (bash) — auto-installs deps
   niuma.bat             # One-command launcher (Windows)
-  tasks/                # Example task descriptions (internal storage)
-  system_tests/         # pytest suite (29 tests)
-  docs/                 # Design docs and test plans
+  system_tests/         # pytest suite (34 tests)
+  docs/                 # Design docs, test plans, and user guides
 ```
 
 ## Language Strategy
@@ -132,14 +135,17 @@ don't need to change.
 
 ## Status
 
-v0.3.0 — 29 system tests passing. Conversational requirement clarification, git-driven
-architecture, and configurable retry limits are all implemented. The compiler → worker → reviewer
-loop runs end-to-end with real LLMs. `./niuma` → configure models → new task to get started.
+v0.4.0 — 34 system tests passing. Conversational requirement clarification, git-driven
+architecture, configurable retry limits, and git credential auto-setup are all implemented.
+A 18-task benchmark suite measures weak model capability across 6 real-world dimensions.
+The compiler → worker → reviewer loop runs end-to-end with real LLMs.
+`./niuma` → configure models → new task to get started.
 
 ## Docs
 
-- [Design doc](docs/design-20260505.md) — DAG node specification, fault recovery, prompt templates, architecture review
-- [User guide](docs/user-guide.md) — complete workflow, project management, Git-based review
+- [Design doc](docs/design-20260505.md) — DAG specification, 2 GB verification stack, tool strategy, fault recovery
+- [User guide](docs/user-guide.md) — complete workflow, project management, git credential setup
+- [Benchmark design](docs/superpowers/specs/2026-05-07-weak-model-benchmark-design.md) — weak model capability measurement
 
 ## License
 

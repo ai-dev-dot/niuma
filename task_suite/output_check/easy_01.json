@@ -1,0 +1,9 @@
+{
+  "task_id": "output_check_easy_01",
+  "dimension": "output_check",
+  "difficulty": "easy",
+  "language": "text",
+  "prompt": "以下是待办 CLI 工具 `python app.py list` 的输出。请判断输出是否正确（回答 PASS 或 FAIL，并一句话说明原因）。\n\n已添加两条待办后运行 `python app.py list` 的输出:\n```\n1. 买牛奶\n2. 写作业\n```\n\n预期行为：列出所有待办事项，带序号。",
+  "judge": {"method": "keyword_match", "keyword_threshold": 1},
+  "keywords": ["PASS", "pass", "正确", "无误", "符合"]
+}

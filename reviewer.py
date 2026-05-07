@@ -75,31 +75,44 @@ DAG 结构:
 审查范围: 合约合规性、签名匹配、节点间数据流连贯性。
 不要审查: 代码风格、性能优化、文档。
 
-输出:
-- 如果所有节点满足要求: PASS
-- 如果有问题: FAIL: <节点ID> — <合约违规描述> — <修改建议>"""
+你必须只输出一个 JSON 对象，不要加任何解释或 markdown 标记：
+
+{{"verdict": "PASS"}}
+或者
+{{"verdict": "FAIL", "failed_nodes": ["<节点ID>", ...], "suggestions": "<违规描述 + 修改建议>"}}"""
 
 
 def _parse_review(raw: str, node_results: list[NodeResult]) -> ReviewResult:
-    import re
+    import json as _json
+    import re as _re
     text = raw.strip()
-    # 去掉模型的思考过程和 markdown 标记
-    text = re.sub(r'<think>[\s\S]*?</think>', '', text)
-    text = re.sub(r'```(?:json)?\s*', '', text)
+    text = _re.sub(r'<think>[\s\S]*?</think>', '', text)
+    text = _re.sub(r'```(?:json)?\s*', '', text)
     text = text.strip()
-    # 在全文搜索 PASS/FAIL（不仅仅行首）
+
+    # 优先尝试 JSON 解析
+    m = _re.search(r'\{[\s\S]*\}', text)
+    if m:
+        try:
+            data = _json.loads(m.group(0))
+            verdict = data.get("verdict", "").upper()
+            return ReviewResult(
+                passed=verdict == "PASS",
+                failed_nodes=data.get("failed_nodes", []),
+                suggestions=data.get("suggestions", ""),
+            )
+        except (_json.JSONDecodeError, KeyError):
+            pass
+
+    # 容错：旧格式文本解析
     is_pass = "PASS" in text.upper().split("\n")[0] if text else False
-    if not is_pass and text.upper().startswith("PASS"):
-        is_pass = True
-    # 更宽松的判断：如果包含 PASS 且不包含 FAIL，认为是 PASS
+    has_fail = bool(_re.search(r'\bFAIL\b', text, _re.IGNORECASE))
+    has_pass = bool(_re.search(r'\bPASS\b', text, _re.IGNORECASE))
     if not is_pass:
-        has_fail = bool(re.search(r'\bFAIL\b', text, re.IGNORECASE))
-        has_pass = bool(re.search(r'\bPASS\b', text, re.IGNORECASE))
         is_pass = has_pass and not has_fail
 
     failed_nodes: list[str] = []
     if not is_pass:
-        # 提取被提及的节点 ID
         all_ids = {nr.node_id for nr in node_results}
         for line in text.split("\n"):
             for nid in all_ids:

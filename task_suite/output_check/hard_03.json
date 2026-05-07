@@ -1,0 +1,9 @@
+{
+  "task_id": "output_check_hard_03",
+  "dimension": "output_check",
+  "difficulty": "hard",
+  "language": "text",
+  "prompt": "以下是一个博客 API 在添加一篇帖子后 GET /posts 的完整输出。请从以下维度验证：HTTP 状态码、JSON 结构、数据完整性（新帖子是否存在）、排序是否正确（新帖子是否在前）。回答 PASS 或 FAIL，逐维度说明。\n\n操作步骤:\n1. DELETE /posts/1 (清空旧数据)\n2. POST /posts {\"title\": \"第一篇\", \"content\": \"Hello World\"}\n3. POST /posts {\"title\": \"第二篇\", \"content\": \"Second post\"}\n4. GET /posts\n\n响应状态码: 200\n响应头: Content-Type: application/json\n响应体:\n```json\n{\n  \"posts\": [\n    {\"id\": 2, \"title\": \"第二篇\", \"content\": \"Second post\", \"created_at\": \"2026-05-07 10:30:00\"},\n    {\"id\": 1, \"title\": \"第一篇\", \"content\": \"Hello World\", \"created_at\": \"2026-05-07 10:29:00\"}\n  ]\n}\n```\n\n预期: 按创建时间降序排列（最新的在前），包含所有已添加的帖子。",
+  "judge": {"method": "keyword_match", "keyword_threshold": 1},
+  "keywords": ["PASS", "pass", "正确", "符合", "无误", "完整", "降序", "最新", "排序"]
+}

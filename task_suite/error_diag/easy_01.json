@@ -1,0 +1,9 @@
+{
+  "task_id": "error_diag_easy_01",
+  "dimension": "error_diag",
+  "difficulty": "easy",
+  "language": "text",
+  "prompt": "以下是命令行待办工具的代码。用户运行 `python app.py add 买牛奶` 时报错。请一句话指出根本原因。\n\n```python\nimport sys\ntasks = []\nif sys.argv[1] == 'add':\n    tasks.append(sys.argv[2])\n    print(f'已添加: {sys.argv[2]}')\n```\n\n错误信息:\n```\nTraceback (most recent call last):\n  File \"app.py\", line 3, in <module>\n    if sys.argv[1] == 'add':\n       ~~~~~~~~^^^\nIndexError: list index out of range\n```",
+  "judge": {"method": "keyword_match", "keyword_threshold": 1},
+  "keywords": ["argv", "参数", "argument", "index", "长度", "length", "检查", "check", "判断", "len"]
+}

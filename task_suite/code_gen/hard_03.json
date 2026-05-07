@@ -1,0 +1,16 @@
+{
+  "task_id": "code_gen_hard_03",
+  "dimension": "code_gen",
+  "difficulty": "hard",
+  "language": "python",
+  "prompt": "写一个 Flask REST API 服务 app.py，实现一个简单的图书管理 API：\n\n数据模型（内存存储）：\n- Book: {id, title, author, year}\n\n端点：\n- GET /books — 返回所有图书列表（JSON 数组）\n- GET /books/<id> — 返回单本图书（JSON，不存在返回 404）\n- POST /books — 添加图书，请求体 {\"title\": \"...\", \"author\": \"...\", \"year\": 2024}，返回 201\n- DELETE /books/<id> — 删除图书，返回 204（不存在返回 404）\n\n需要 pip install flask 才能运行。只输出代码，放在 ```python 代码块中。",
+  "judge": {"method": "api"},
+  "test_cases": [
+    {"method": "POST", "path": "/books", "body": {"title": "三体", "author": "刘慈欣", "year": 2008}, "expected_status": 201},
+    {"method": "POST", "path": "/books", "body": {"title": "活着", "author": "余华", "year": 1993}, "expected_status": 201},
+    {"method": "GET", "path": "/books", "expected_status": 200, "expected_keys": ["books"]},
+    {"method": "GET", "path": "/books/1", "expected_status": 200, "expected_keys": ["title", "author"]},
+    {"method": "DELETE", "path": "/books/1", "expected_status": 204},
+    {"method": "GET", "path": "/books/1", "expected_status": 404}
+  ]
+}

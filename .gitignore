@@ -154,3 +154,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Niuma runtime outputs
+outputs/
+benchmark_results/

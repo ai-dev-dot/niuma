@@ -1,0 +1,9 @@
+{
+  "task_id": "code_review_medium_02",
+  "dimension": "code_review",
+  "difficulty": "medium",
+  "language": "text",
+  "prompt": "审查以下 Flask 图书 API。列出至少 3 个问题（安全、数据完整性、错误处理等方面）。\n\n```python\nfrom flask import Flask, request\napp = Flask(__name__)\nbooks = []\n\n@app.route('/books', methods=['POST'])\ndef add_book():\n    book = eval(request.data.decode())\n    books.append(book)\n    return str(book), 201\n\n@app.route('/books/<int:book_id>', methods=['GET'])\ndef get_book(book_id):\n    return str(books[book_id])\n\n@app.route('/admin/reset', methods=['GET'])\ndef reset():\n    global books\n    books = []\n    return 'OK'\n```",
+  "judge": {"method": "keyword_match", "keyword_threshold": 2},
+  "keywords": ["eval", "代码执行", "injection", "注入", "安全", "security", "dangerous", "危险", "admin", "认证", "auth", "权限", "越界", "index", "indexerror", "没有", "缺少", "missing", "验证", "validation"]
+}

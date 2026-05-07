@@ -26,6 +26,7 @@ DEFAULT_CONFIG = {
         "worker_code_extraction": 5,
         "reviewer_rounds": 5,
         "llm_api_max_retries": 3,
+        "early_abort_fail_ratio": 0.6,
     },
 }
 

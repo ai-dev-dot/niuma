@@ -1,0 +1,15 @@
+{
+  "task_id": "code_gen_easy_01",
+  "dimension": "code_gen",
+  "difficulty": "easy",
+  "language": "python",
+  "prompt": "写一个命令行工具 app.py，实现简单的待办事项管理。\n命令格式:\n- `python app.py add \"买牛奶\"` — 添加待办\n- `python app.py list` — 列出所有待办（带序号 1,2,3...）\n- `python app.py done 1` — 标记第1项为完成（删除该项）\n\n数据存到 tasks.json 文件中（JSON 数组），确保重启后数据不丢失。只输出代码，放在 ```python 代码块中。",
+  "judge": {"method": "cli"},
+  "test_cases": [
+    {"args": ["add", "买牛奶"], "contains_any": ["买牛奶", "OK", "ok"]},
+    {"args": ["add", "写作业"], "contains_any": ["写作业", "OK", "ok"]},
+    {"args": ["list"], "contains_all": ["买牛奶", "写作业"]},
+    {"args": ["done", "1"], "expect_success": true},
+    {"args": ["list"], "contains_all": ["写作业"], "contains_not": ["买牛奶"]}
+  ]
+}

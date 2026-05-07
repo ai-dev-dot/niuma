@@ -1,0 +1,9 @@
+{
+  "task_id": "error_diag_medium_02",
+  "dimension": "error_diag",
+  "difficulty": "medium",
+  "language": "text",
+  "prompt": "以下是 Flask 图书 API 的部分代码。用户说 POST /books 返回 500 错误。请一句话指出根本原因。\n\n```python\nfrom flask import Flask, request, jsonify\napp = Flask(__name__)\nbooks = []\n\n@app.route('/books', methods=['POST'])\ndef add_book():\n    data = request.get_json()\n    book = {\n        'id': len(books) + 1,\n        'title': data['title'],\n        'author': data['author']\n    }\n    books.append(book)\n    return jsonify(book), 201\n\n@app.route('/books', methods=['GET'])\ndef get_books():\n    return jsonify({'books': books})\n```\n\n错误信息（来自服务日志）:\n```\nTypeError: 'NoneType' object is not subscriptable\n  File \"app.py\", line 8, in add_book\n    'title': data['title'],\n```",
+  "judge": {"method": "keyword_match", "keyword_threshold": 1},
+  "keywords": ["Content-Type", "content-type", "json", "header", "request.get_json", "None", "null", "空"]
+}

@@ -5,6 +5,8 @@ from unittest.mock import patch
 import pytest
 import worker
 from models import Contract, DAGNode, FunctionSignature, NodeStatus
+import llm
+import sandbox
 
 
 def _make_node(**kwargs) -> DAGNode:
@@ -27,41 +29,36 @@ def _make_node(**kwargs) -> DAGNode:
     defaults.update(kwargs)
     return DAGNode(**defaults)
 
+# shared: compile check always passes
+_COMPILE_OK = sandbox.SandboxResult(exit_code=0, stdout="", stderr="")
+# shared: test failure
+_TEST_FAIL = sandbox.SandboxResult(exit_code=1, stdout="", stderr="AssertionError")
+_TEST_PASS = sandbox.SandboxResult(exit_code=0, stdout=".", stderr="")
+
 
 class TestWorker:
     def test_pass_on_first_try(self):
-        import llm
-        import sandbox
         with patch.object(llm, "call_weak") as mock_llm, patch.object(sandbox, "execute") as mock_sandbox:
-            # 第1次: 自检返回 PASS; 第2次: 生成代码
-            mock_llm.side_effect = [
-                llm.LLMResponse(content="PASS", input_tokens=5, output_tokens=1),
-                llm.LLMResponse(content="def add(a, b): return a + b", input_tokens=100, output_tokens=30),
-            ]
-            mock_sandbox.return_value = sandbox.SandboxResult(exit_code=0, stdout=".", stderr="")
+            mock_llm.return_value = llm.LLMResponse(content="def add(a, b): return a + b", input_tokens=100, output_tokens=30)
+            # 编译检查通过 + 测试通过
+            mock_sandbox.side_effect = [_COMPILE_OK, _TEST_PASS]
             node = _make_node()
             result = worker.execute_node(node, {})
             assert result.status == NodeStatus.PASSED
             assert result.iteration_count == 1
 
     def test_pass_after_retries(self):
-        import llm
-        import sandbox
         with patch.object(llm, "call_weak") as mock_llm, patch.object(sandbox, "execute") as mock_sandbox:
-            # 自检PASS + 代码(3轮: 失败,失败,通过)
             mock_llm.side_effect = [
-                llm.LLMResponse(content="PASS", input_tokens=5, output_tokens=1),
-                llm.LLMResponse(content="def add(a, b): return a + b", input_tokens=100, output_tokens=30),
-                llm.LLMResponse(content="PASS", input_tokens=5, output_tokens=1),
-                llm.LLMResponse(content="def add(a, b): return a + b", input_tokens=100, output_tokens=30),
-                llm.LLMResponse(content="PASS", input_tokens=5, output_tokens=1),
+                llm.LLMResponse(content="def add(a, b): return a - b", input_tokens=100, output_tokens=30),
+                llm.LLMResponse(content="def add(a, b): return a * b", input_tokens=100, output_tokens=30),
                 llm.LLMResponse(content="def add(a, b): return a + b", input_tokens=100, output_tokens=30),
             ]
-            # 前两次失败，第三次通过
+            # 编译检查均通过; 测试: 失败, 失败, 通过
             mock_sandbox.side_effect = [
-                sandbox.SandboxResult(exit_code=1, stdout="", stderr="AssertionError"),
-                sandbox.SandboxResult(exit_code=1, stdout="", stderr="AssertionError"),
-                sandbox.SandboxResult(exit_code=0, stdout=".", stderr=""),
+                _COMPILE_OK, _TEST_FAIL,
+                _COMPILE_OK, _TEST_FAIL,
+                _COMPILE_OK, _TEST_PASS,
             ]
             node = _make_node()
             result = worker.execute_node(node, {})
@@ -69,31 +66,47 @@ class TestWorker:
             assert result.iteration_count == 3
 
     def test_fail_after_max_iterations(self):
-        import llm
-        import sandbox
         with patch.object(llm, "call_weak") as mock_llm, patch.object(sandbox, "execute") as mock_sandbox:
-            # 每轮: 自检PASS + 生成代码(每次都失败)
             mock_llm.side_effect = [
-                llm.LLMResponse(content="PASS", input_tokens=5, output_tokens=1),
                 llm.LLMResponse(content="def add(a, b): return a - b", input_tokens=100, output_tokens=30),
-            ] * 5
-            mock_sandbox.return_value = sandbox.SandboxResult(exit_code=1, stdout="", stderr="AssertionError")
+                llm.LLMResponse(content="def add(a, b): return a * b", input_tokens=100, output_tokens=30),
+                llm.LLMResponse(content="def add(a, b): return a / b", input_tokens=100, output_tokens=30),
+            ]
+            # 编译检查均通过; 测试全部失败
+            mock_sandbox.side_effect = [
+                _COMPILE_OK, _TEST_FAIL,
+                _COMPILE_OK, _TEST_FAIL,
+                _COMPILE_OK, _TEST_FAIL,
+            ]
             node = _make_node(max_iterations=3)
             result = worker.execute_node(node, {})
             assert result.status == NodeStatus.FAILED
             assert result.iteration_count == 3
 
-    def test_empty_code_response(self):
-        import llm
-        with patch.object(llm, "call_weak") as mock_llm:
-            # 自检PASS + 空代码(3次重试也空) → 放弃
+    def test_fail_on_compile_check(self):
+        """编译检查不通过时直接重做，不跑测试。"""
+        with patch.object(llm, "call_weak") as mock_llm, patch.object(sandbox, "execute") as mock_sandbox:
+            # 代码必须通过 _looks_like_code 才能到达 _compile_check
             mock_llm.side_effect = [
-                llm.LLMResponse(content="PASS", input_tokens=5, output_tokens=1),
-                llm.LLMResponse(content="  ", input_tokens=100, output_tokens=1),
-                llm.LLMResponse(content="  ", input_tokens=100, output_tokens=1),
-                llm.LLMResponse(content="  ", input_tokens=100, output_tokens=1),
-                llm.LLMResponse(content="  ", input_tokens=100, output_tokens=1),
+                llm.LLMResponse(content="def add(a, b):\n    return a + \n", input_tokens=100, output_tokens=30),
+                llm.LLMResponse(content="def add(a, b): return a + b", input_tokens=100, output_tokens=30),
             ]
+            # 编译检查失败 → 重做 → 编译检查通过 → 测试通过
+            mock_sandbox.side_effect = [
+                sandbox.SandboxResult(exit_code=1, stdout="", stderr="SyntaxError"),
+                _COMPILE_OK, _TEST_PASS,
+            ]
+            node = _make_node()
+            result = worker.execute_node(node, {})
+            assert result.status == NodeStatus.PASSED
+            assert result.iteration_count == 2
+
+    def test_empty_code_response(self):
+        with patch.object(llm, "call_weak") as mock_llm:
+            # 5 次提取重试全部返回空 → 直接失败（单轮迭代即终止）
+            mock_llm.side_effect = [
+                llm.LLMResponse(content="  ", input_tokens=100, output_tokens=1),
+            ] * 5
             node = _make_node(max_iterations=3)
             result = worker.execute_node(node, {})
             assert result.status == NodeStatus.FAILED

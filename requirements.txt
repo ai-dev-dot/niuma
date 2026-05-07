@@ -1,1 +1,13 @@
-pytest>=8.0
+# 牛马内置工具依赖 — 2GB 环境精简基础集
+# 弱模型通过 pip/npm 可安装额外包（安装前评估环境）
+
+# Python 运行时
+pytest>=8.0        # 测试框架
+flask>=3.0         # Web API 服务
+requests>=2.31     # HTTP 客户端（验证 API）
+
+# ── 系统工具（非 pip，需单独安装）──
+# Ubuntu: sudo apt-get install -y curl jq sqlite3
+# curl      — API 端点验证
+# jq        — JSON 响应结构校验
+# sqlite3   — 数据查询验证

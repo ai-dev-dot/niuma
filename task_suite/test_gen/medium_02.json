@@ -1,0 +1,10 @@
+{
+  "task_id": "test_gen_medium_02",
+  "dimension": "test_gen",
+  "difficulty": "medium",
+  "language": "python",
+  "code_source": "ground_truth",
+  "prompt": "以下是一个文件处理类。请为它写 pytest 测试，覆盖：写文件、读文件、文件不存在的情况。测试放在 ```python 代码块中。\n\n类:\n```python\nimport json, os\n\nclass NoteStore:\n    def __init__(self, filepath='notes.json'):\n        self.filepath = filepath\n\n    def add(self, title, content):\n        notes = self._load()\n        notes.append({'title': title, 'content': content})\n        self._save(notes)\n\n    def list(self):\n        return self._load()\n\n    def delete(self, index):\n        notes = self._load()\n        if 0 <= index < len(notes):\n            notes.pop(index)\n            self._save(notes)\n            return True\n        return False\n\n    def _load(self):\n        if os.path.exists(self.filepath):\n            return json.loads(open(self.filepath, encoding='utf-8').read())\n        return []\n\n    def _save(self, notes):\n        json.dump(notes, open(self.filepath, 'w', encoding='utf-8'), ensure_ascii=False)\n```",
+  "ground_truth_code": "import json, os\n\nclass NoteStore:\n    def __init__(self, filepath='notes.json'):\n        self.filepath = filepath\n\n    def add(self, title, content):\n        notes = self._load()\n        notes.append({'title': title, 'content': content})\n        self._save(notes)\n\n    def list(self):\n        return self._load()\n\n    def delete(self, index):\n        notes = self._load()\n        if 0 <= index < len(notes):\n            notes.pop(index)\n            self._save(notes)\n            return True\n        return False\n\n    def _load(self):\n        if os.path.exists(self.filepath):\n            return json.loads(open(self.filepath, encoding='utf-8').read())\n        return []\n\n    def _save(self, notes):\n        json.dump(notes, open(self.filepath, 'w', encoding='utf-8'), ensure_ascii=False)\n",
+  "judge": {"method": "sandbox"}
+}

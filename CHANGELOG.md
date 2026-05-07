@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.4.0 (2026-05-07)
+
+### Engineering Quality
+
+- **Compile-check replaces self-check:** the worker no longer asks the weak model "is your code OK?"
+  (a gate that never failed). Instead, generated code is compile-checked through the sandbox
+  (`py_compile` / `tsc --noEmit`) — zero additional API tokens, zero false positives.
+- **Downstream retry on review FAIL:** when the reviewer rejects a node, all dependent
+  downstream nodes are now re-executed with the updated context — no more stale integration.
+- **Structured reviewer output:** reviewer now outputs `{"verdict": "PASS"/"FAIL", ...}` JSON.
+  Eliminates fragile regex-based PASS/FAIL parsing.
+- **Configurable early abort:** if the ratio of failed nodes exceeds a threshold
+  (`early_abort_fail_ratio`, default 0.6), remaining nodes are skipped to save tokens.
+- **Full pipeline integration tests:** 4 new tests cover the complete compiler→worker→reviewer
+  loop including review retry, compilation failure cleanup, and early abort. 34 tests total.
+
+### Developer Experience
+
+- **Git credential auto-setup:** when creating a project, the TUI auto-detects HTTPS vs SSH,
+  guides you through credential setup, and seeds credentials via `git credential approve`.
+  Strong and weak models can now push without manual intervention.
+- **`--doctor` now checks:** git credential helper, SSH keys, curl, jq, sqlite3.
+- **Tool strategy implemented:** built-in tools (pytest, flask, requests, curl, jq, sqlite3)
+  documented in `requirements.txt`. Weak models can install additional packages with
+  environment-aware pre-flight checks.
+
+### Benchmark Suite
+
+- **18 real-world application tasks** across 6 dimensions (code generation, test generation,
+  error diagnosis, code fixing, code review, output verification). Every task is a real app
+  (CLI tool, API endpoint, data processor) — not an algorithm exercise.
+- **5 judge methods** adapted for 2 GB: CLI subprocess, API server + curl, keyword match,
+  sandbox test, file output comparison. No browser required.
+
 ## 0.3.0 (2026-05-06)
 
 ### Core Engine

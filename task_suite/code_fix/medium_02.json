@@ -1,0 +1,16 @@
+{
+  "task_id": "code_fix_medium_02",
+  "dimension": "code_fix",
+  "difficulty": "medium",
+  "language": "python",
+  "prompt": "以下待办事项 CLI 工具有两个 bug：\n1. `done` 命令不检查索引是否有效（越界会崩溃）\n2. `add` 命令保存到文件时覆盖了之前的数据（bug: tasks = [] 清空了已有数据）\n\n请修复代码，使所有测试用例通过。只输出修复后的完整代码，放在 ```python 代码块中。\n\n```python\nimport sys, json, os\nFILE = 'tasks.json'\n\ndef load():\n    if os.path.exists(FILE):\n        return json.loads(open(FILE, encoding='utf-8').read())\n    return []\n\ncmd = sys.argv[1] if len(sys.argv) > 1 else ''\nif cmd == 'add' and len(sys.argv) > 2:\n    tasks = []\n    tasks.append(sys.argv[2])\n    json.dump(tasks, open(FILE, 'w', encoding='utf-8'), ensure_ascii=False)\n    print('OK')\nelif cmd == 'list':\n    tasks = load()\n    for i, t in enumerate(tasks, 1):\n        print(f'{i}. {t}')\nelif cmd == 'done' and len(sys.argv) > 2:\n    tasks = load()\n    tasks.pop(int(sys.argv[2]) - 1)\n    json.dump(tasks, open(FILE, 'w', encoding='utf-8'), ensure_ascii=False)\n    print('OK')\n```",
+  "judge": {"method": "cli"},
+  "test_cases": [
+    {"args": ["add", "买牛奶"], "contains_any": ["买牛奶", "OK", "ok"]},
+    {"args": ["add", "写作业"], "contains_any": ["写作业", "OK", "ok"]},
+    {"args": ["list"], "contains_all": ["买牛奶", "写作业"]},
+    {"args": ["done", "1"], "expect_success": true},
+    {"args": ["done", "99"], "expect_success": false, "contains_any": ["无效", "错误", "越界", "不存在", "invalid", "error", "range"]},
+    {"args": ["list"], "contains_all": ["写作业"], "contains_not": ["买牛奶"]}
+  ]
+}

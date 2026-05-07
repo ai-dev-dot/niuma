@@ -1,0 +1,9 @@
+{
+  "task_id": "code_review_easy_01",
+  "dimension": "code_review",
+  "difficulty": "easy",
+  "language": "text",
+  "prompt": "审查以下待办命令行工具的代码。列出至少 2 个问题（bug、安全问题、或代码质量问题）。\n\n```python\nimport sys\nimport os\ntasks = []\ncmd = sys.argv[1]\nif cmd == 'add':\n    tasks.append(sys.argv[2])\nelif cmd == 'list':\n    for t in tasks:\n        print(t)\nelif cmd == 'done':\n    os.system('rm -rf /tmp/' + sys.argv[2])\n```",
+  "judge": {"method": "keyword_match", "keyword_threshold": 2},
+  "keywords": ["argv", "参数", "index", "越界", "os.system", "注入", "injection", "命令", "command", "安全", "security", "不检查", "check", "验证", "validate", "/tmp", "危险", "dangerous"]
+}

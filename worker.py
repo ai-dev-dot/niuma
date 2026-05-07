@@ -34,15 +34,14 @@ def execute_node(node: DAGNode, completed_context: dict[str, str], task_id: str 
                 print(f"    第{iteration}轮: 模型未返回有效代码，节点失败")
             return result
 
-        # 自检：让弱模型快速审查自己的代码
+        # 编译检查：用沙箱验证代码语法
         if verbose:
-            print(f"    [弱模型] 自检代码...")
-        llm.set_meta({"role": "selfcheck", "task_id": task_id, "node_id": node.node_id, "iteration": iteration})
-        if not _quick_self_check(code, node.signature.language, verbose=verbose):
-            result.test_output = "弱模型自检不通过"
+            print(f"    [弱模型] 编译检查...")
+        if not _compile_check(code, node.signature.language, verbose=verbose):
+            result.test_output = "编译检查不通过（语法错误或无法编译）"
             if verbose:
-                print(f"    第{iteration}轮: 自检未通过，重新生成...")
-            review_feedback = f"你的代码自检未通过。请检查函数签名是否正确、是否有明显语法错误、是否实现了所有要求的方法。"
+                print(f"    第{iteration}轮: 编译未通过，重新生成...")
+            review_feedback = f"你的代码编译未通过。请检查是否有语法错误、缺少函数体、类型不匹配等问题。"
             continue
 
         result.generated_code = code
@@ -187,21 +186,23 @@ def _call_weak_model(node: DAGNode, context: dict[str, str], previous: NodeResul
     return llm.call_weak(prompt, system=f"你是一个{lang.upper()}程序员。只输出一个 ```{code_fence} 代码块，不要写解释、注释或思考过程。代码块之外不要写任何文字。")
 
 
-def _quick_self_check(code: str, lang: str, verbose: bool = False) -> bool:
-    """让弱模型快速自检代码是否合理。返回 True 表示通过。"""
-    prompt = f"""快速检查以下 {lang} 代码是否有明显问题（语法错误、缺少函数体、类型不匹配等）。
-只回答 PASS 或 FAIL。FAIL 时附一句简短说明。
-
-```{lang}
-{code}
-```"""
-
-    try:
-        resp = llm.call_weak(prompt, max_tokens=100, temperature=0)
-        content = resp.content.strip().upper()
-        return "PASS" in content
-    except Exception:
-        return True
+def _compile_check(code: str, lang: str, verbose: bool = False) -> bool:
+    """用沙箱运行编译/语法检查，真正验证代码是否可编译。不消耗 API token。"""
+    if lang == "typescript":
+        result = sandbox.execute(
+            code=code,
+            test_code="",
+            language="typescript",
+        )
+        return result.exit_code == 0
+    elif lang == "python":
+        result = sandbox.execute(
+            code=code,
+            test_code="",
+            language="python",
+        )
+        return result.exit_code == 0
+    return True
 
 
 def _extract_code(raw: str) -> str:
@@ -267,28 +268,3 @@ def commit_node(node: DAGNode, result: NodeResult, repo_path: str) -> str:
         f"worker: implement {node.node_id} ({result.iteration_count} iterations)",
     )
     return filepath
-
-
-def _read_dag_from_file(repo_path: str) -> "DAG | None":
-    """从文件系统读取 dag.json 并解析为 DAG 对象。"""
-    import json as _json
-    from compiler import _parse_dag
-    dag_file = Path(repo_path) / ".niuma" / "dag.json"
-    if not dag_file.exists():
-        return None
-    try:
-        data = _json.loads(dag_file.read_text(encoding="utf-8"))
-        return _parse_dag(_json.dumps(data))
-    except (json.JSONDecodeError, KeyError, Exception):
-        return None
-
-
-def _read_completed_code(repo_path: str, dag: "DAG") -> dict[str, str]:
-    """读取已通过节点的代码，返回 {node_id: code} 的上下文。"""
-    context: dict[str, str] = {}
-    for node in dag.nodes:
-        ext = "ts" if node.signature.language == "typescript" else "py"
-        code_file = Path(repo_path) / "src" / f"{node.node_id}.{ext}"
-        if code_file.exists():
-            context[node.node_id] = code_file.read_text(encoding="utf-8")
-    return context

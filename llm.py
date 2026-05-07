@@ -133,7 +133,7 @@ def call(
             elapsed = time.time() - t_start
             in_tok = usage.get("prompt_tokens", 0)
             out_tok = usage.get("completion_tokens", 0)
-            _log(f"\r  ✓ {model} ({elapsed:.1f}s, {in_tok}+{out_tok} tokens)")
+            _log(f"\r  [OK] {model} ({elapsed:.1f}s, {in_tok}+{out_tok} tokens)")
 
             # 写全量调用日志
             global _meta
@@ -183,7 +183,7 @@ def call(
                 body_text = e.read().decode("utf-8", errors="replace")[:300]
             except Exception:
                 pass
-            _log(f"\r  ✗ HTTP {e.code} ({model}), 尝试 {attempt + 1}/{max_retries + 1}")
+            _log(f"\r  [ERR] HTTP {e.code} ({model}), 尝试 {attempt + 1}/{max_retries + 1}")
             if e.code in (401, 403):
                 raise RuntimeError(
                     f"API 认证失败 ({e.code}) | Authentication failed.\n"
@@ -192,7 +192,7 @@ def call(
                 ) from e
         except (urllib.error.URLError, OSError) as e:
             last_error = e
-            _log(f"\r  ✗ 网络错误 ({model}), 尝试 {attempt + 1}/{max_retries + 1} | Network error")
+            _log(f"\r  [ERR] 网络错误 ({model}), 尝试 {attempt + 1}/{max_retries + 1} | Network error")
 
         if attempt < max_retries:
             delay = 2 ** attempt

@@ -1,0 +1,9 @@
+{
+  "task_id": "error_diag_hard_03",
+  "dimension": "error_diag",
+  "difficulty": "hard",
+  "language": "text",
+  "prompt": "以下是带 SQLite 的博客 API。用户说 GET /posts 偶尔返回 500，不是每次。请一句话指出根本原因（提示：涉及并发/线程安全）。\n\n```python\nimport sqlite3\nfrom flask import Flask, jsonify, g\n\napp = Flask(__name__)\n\ndef get_db():\n    if 'db' not in g:\n        g.db = sqlite3.connect('blog.db')\n        g.db.row_factory = sqlite3.Row\n    return g.db\n\n@app.route('/posts', methods=['GET'])\ndef get_posts():\n    db = get_db()\n    posts = [dict(r) for r in db.execute('SELECT * FROM posts').fetchall()]\n    return jsonify({'posts': posts})\n\n@app.teardown_appcontext\ndef close_db(error):\n    db = g.pop('db', None)\n    if db is not None:\n        db.close()\n```\n\n错误信息（偶尔出现）:\n```\nsqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread.\n```",
+  "judge": {"method": "keyword_match", "keyword_threshold": 1},
+  "keywords": ["check_same_thread", "check_same", "线程", "thread", "False", "连接池", "connection"]
+}

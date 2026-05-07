@@ -1,0 +1,10 @@
+{
+  "task_id": "test_gen_easy_01",
+  "dimension": "test_gen",
+  "difficulty": "easy",
+  "language": "python",
+  "code_source": "ground_truth",
+  "prompt": "以下是一个数据处理函数。请为它写 pytest 测试，覆盖：正常输入、空列表、边界情况。测试放在 ```python 代码块中。\n\n函数:\n```python\ndef calculate_stats(numbers):\n    if not numbers:\n        return {'count': 0, 'sum': 0, 'avg': None}\n    return {\n        'count': len(numbers),\n        'sum': sum(numbers),\n        'avg': sum(numbers) / len(numbers)\n    }\n```",
+  "ground_truth_code": "def calculate_stats(numbers):\n    if not numbers:\n        return {'count': 0, 'sum': 0, 'avg': None}\n    return {\n        'count': len(numbers),\n        'sum': sum(numbers),\n        'avg': sum(numbers) / len(numbers)\n    }\n",
+  "judge": {"method": "sandbox"}
+}

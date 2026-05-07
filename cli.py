@@ -294,13 +294,222 @@ def _create_project() -> None:
     if not git_url:
         return
 
+    protocol = project_manager.detect_git_protocol(git_url)
+    host_info = project_manager.parse_git_host(git_url)
+    service = host_info["service"]
+    host = host_info["host"]
+    cred_seeded = False
+
+    # ── HTTPS: 凭据配置 + 播种 ──
+    if protocol == "https":
+        cred = project_manager.check_git_credential_helper()
+
+        if not cred["configured"]:
+            _clear()
+            _title("Git 认证配置 | Git Authentication Setup")
+            print(f"  检测到 HTTPS 协议 — 需要配置 git 凭据存储")
+            print(f"  目标: {host} ({service})")
+            print()
+
+            if service == "GitHub":
+                print("  Step 1: 创建 Personal Access Token（如果还没有的话）")
+                print("    → 打开 https://github.com/settings/tokens")
+                print("    → 点击 'Generate new token (classic)'")
+                print("    → 勾选 'repo' 权限（完整仓库访问）")
+                print("    → 生成后复制 token（只显示一次！）")
+                print()
+            elif service == "GitLab":
+                print(f"  Step 1: 创建 Personal Access Token（如果还没有的话）")
+                print(f"    → 打开 https://{host}/-/user_settings/personal_access_tokens")
+                print(f"    → 勾选 'read_repository' + 'write_repository'")
+                print(f"    → 生成后复制 token")
+                print()
+            elif service == "Gitee":
+                print(f"  Step 1: 创建私人令牌（如果还没有的话）")
+                print(f"    → 打开 https://gitee.com/profile/personal_access_tokens")
+                print(f"    → 勾选 'projects' 权限")
+                print(f"    → 生成后复制 token")
+                print()
+
+            print("  Step 2: 配置 git 凭据存储（只做一次，全局生效）")
+            print()
+            print("    这是为了让 git 记住你的账号密码，后续强弱模型才能自动提交。")
+            print()
+            print("    牛马可以帮你自动配置，执行：")
+            print("      git config --global credential.helper store")
+            print("    （凭据明文存到 ~/.git-credentials，重启后仍然有效）")
+            print()
+            print("    备选（更安全但 1 小时后过期）：")
+            print("      git config --global credential.helper 'cache --timeout=3600'")
+            print()
+            print("  ═══════════════════════════════════════")
+            auto_cfg = _ask("  是否让牛马自动配置？(Y=是/n=我要手动配置)", "Y").lower()
+            if auto_cfg in ("y", "yes", ""):
+                import subprocess as _sp
+                r = _sp.run(
+                    ["git", "config", "--global", "credential.helper", "store"],
+                    capture_output=True, text=True,
+                )
+                if r.returncode == 0:
+                    print("  [OK] 已自动配置 credential.helper = store")
+                else:
+                    err = r.stderr.strip()
+                    print(f"  [!!] 自动配置失败: {err}")
+                    print("  请手动执行: git config --global credential.helper store")
+                    _wait()
+                    return
+            else:
+                print()
+                print("  请手动执行（另开终端或这里都行）：")
+                print("    git config --global credential.helper store")
+                print("  完成后回到这里继续。")
+            print("  ═══════════════════════════════════════")
+            print()
+            _ask("  按回车继续... | Press Enter when ready...")
+
+            # 重新检测 credential.helper 是否已配置
+            cred = project_manager.check_git_credential_helper()
+
+            if not cred["configured"]:
+                _clear()
+                _title("Git 认证配置 | Git Authentication Setup")
+                print(f"  [!!] 仍未检测到 credential.helper 配置")
+                print()
+                print("  请在终端执行后重试:")
+                print("    git config --global credential.helper store")
+                print()
+                _wait()
+                return
+        else:
+            _clear()
+            _title("Git 认证配置 | Git Authentication Setup")
+            print(f"  [OK] HTTPS 凭据存储已配置: {cred['helper']} ({cred['scope']})")
+            print()
+
+        # 播种凭据 — 不管 helper 是刚配的还是早就配的
+        print("  Step 3: 输入账号凭据（仅此一次，保存后自动使用）")
+        print(f"  用户名: 你的 {service} 用户名")
+        if service == "GitHub":
+            print(f"  密码:   Personal Access Token（不是登录密码！）")
+        elif service in ("GitLab", "Gitee"):
+            print(f"  密码:   个人访问令牌（不是登录密码！）")
+        print()
+
+        git_username = _ask_text(f"  {service} 用户名 | Username")
+        if not git_username:
+            print("  已取消 | Cancelled.")
+            _wait()
+            return
+
+        git_token = _ask_text(f"  Token / 密码（输入时不回显，注意安全）| Token (hidden)")
+        if not git_token:
+            print("  已取消 | Cancelled.")
+            _wait()
+            return
+
+        ok, msg = project_manager.seed_git_credentials(host, git_username, git_token)
+        if ok:
+            print(f"  [OK] {msg}")
+            cred_seeded = True
+        else:
+            print(f"  [!!] {msg}")
+            print(f"  将跳过凭据播种，直接尝试 clone（可能会提示输入密码）")
+            print()
+            _ask("  按回车继续... | Press Enter...")
+        print()
+
+    # ── SSH: 密钥检查 ──
+    elif protocol == "ssh":
+        _clear()
+        _title("Git 认证配置 | Git Authentication Setup")
+        print(f"  检测到 SSH 协议 — 需要 SSH 密钥")
+        print()
+
+        ssh = project_manager.check_ssh_keys()
+        if not ssh["has_key"]:
+            print("  [!!] 未找到 SSH 密钥")
+            print()
+            print("  生成密钥:")
+            print("    ssh-keygen -t ed25519 -C \"niuma@worker\"")
+            print()
+            print(f"  添加公钥到 {service}:")
+            if service == "GitHub":
+                print("    https://github.com/settings/keys")
+            elif service == "GitLab":
+                print(f"    https://{host}/-/user_settings/ssh_keys")
+            elif service == "Gitee":
+                print("    https://gitee.com/profile/sshkeys")
+            print(f"    公钥: cat ~/.ssh/id_ed25519.pub")
+            print()
+            _wait()
+            return
+
+        if not ssh["agent_running"]:
+            print("  [!!] ssh-agent 未运行")
+            print("  请在终端执行:")
+            print('    eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_ed25519')
+            print()
+            _wait()
+            return
+
+        print(f"  [OK] SSH 密钥就绪: {', '.join(ssh['keys'])}")
+        print()
+
     proxy = _ask_text("HTTP 代理 (不需要则留空) | HTTP proxy (leave empty if not needed)", "")
     print()
 
+    # 验证 git 访问
+    print(f"  测试连接到 {host}...")
+    ok, msg = project_manager.verify_git_access(git_url, proxy)
+    if not ok:
+        # 区分认证失败和网络失败
+        is_auth_error = any(kw in msg.lower() for kw in
+            ["authentication", "permission denied", "could not read", "403"])
+        print(f"  [!!] 无法访问仓库 | Cannot access repository:")
+        print(f"  {msg}")
+        if is_auth_error and cred_seeded:
+            print()
+            print(f"  凭据可能不正确。请检查：")
+            print(f"  - 用户名是否拼写正确（注意大小写）")
+            print(f"  - Token 是否完整复制（没有多余空格）")
+            print(f"  - Token 是否有 'repo' 权限")
+        print()
+        print(f"  是否仍然尝试克隆？(y/N)")
+        if _ask("  > ", "N").lower() not in ("y", "yes"):
+            print("  已取消 | Cancelled.")
+            _wait()
+            return
+        print()
+
     try:
         project_manager.create_project(name, git_url, proxy)
+        print()
+
+        # clone 成功 — 确认凭据生效
+        if protocol == "https":
+            cred = project_manager.check_git_credential_helper()
+            if cred["configured"]:
+                if "store" in cred["helper"]:
+                    print(f"  [OK] 凭据已持久化 — 强弱模型可以自动提交和推送")
+                elif "cache" in cred["helper"]:
+                    print(f"  [OK] 凭据已缓存 — 注意超时后可能需重新输入")
+                elif "manager" in cred["helper"] or "osxkeychain" in cred["helper"]:
+                    print(f"  [OK] 凭据已存入系统密钥链 — 强弱模型可以自动提交和推送")
+
     except RuntimeError as e:
-        print(f"  [!!] {e}")
+        err_msg = str(e)
+        print(f"  [!!] {err_msg}")
+
+        # 如果是认证失败，给具体建议
+        if "could not read" in err_msg.lower() or "authentication" in err_msg.lower():
+            print()
+            if protocol == "https":
+                print("  认证失败。可能原因:")
+                print(f"  1. Token 权限不足 — 确保勾选了 repo 权限")
+                print(f"  2. Token 复制不完整 — 尝试重新生成")
+                print(f"  3. 手动验证: git clone {git_url}")
+                print(f"     （手动 clone 成功后，重新运行 ./niuma 创建项目）")
+
     _wait()
 
 

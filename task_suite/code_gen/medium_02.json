@@ -1,0 +1,16 @@
+{
+  "task_id": "code_gen_medium_02",
+  "dimension": "code_gen",
+  "difficulty": "medium",
+  "language": "python",
+  "prompt": "写一个命令行工具 app.py，功能：\n1. `python app.py add \"标题\" \"内容\"` — 添加一条笔记（自动记录创建时间）\n2. `python app.py list` — 列出所有笔记标题和创建时间\n3. `python app.py view 1` — 查看第1条笔记的完整内容\n4. `python app.py delete 1` — 删除第1条笔记\n\n数据存到 notes.json 文件中（JSON 数组，重启后不丢失）。只输出代码，放在 ```python 代码块中。",
+  "judge": {"method": "cli"},
+  "test_cases": [
+    {"args": ["add", "备忘", "今天要开会"], "contains_any": ["备忘"]},
+    {"args": ["add", "购物单", "买牛奶和面包"], "contains_any": ["购物单"]},
+    {"args": ["list"], "contains_all": ["备忘", "购物单"]},
+    {"args": ["view", "1"], "contains_any": ["今天要开会"]},
+    {"args": ["delete", "1"], "expect_success": true},
+    {"args": ["list"], "contains_all": ["购物单"], "contains_not": ["备忘"]}
+  ]
+}

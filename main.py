@@ -161,6 +161,35 @@ def _cmd_doctor() -> None:
     else:
         check("tasks/", False, "无任务文件 | no task files found")
 
+    # 系统工具
+    import shutil as _shutil
+    for tool, pkg in [("curl", "curl"), ("jq", "jq"), ("sqlite3", "sqlite3")]:
+        found = _shutil.which(tool) is not None
+        label = f"系统工具 | System: {tool}"
+        if found:
+            check(label, True, _shutil.which(tool))
+        else:
+            check(label, False, f"未安装 | apt-get install {pkg}")
+
+    # Git 凭据
+    import project_manager as _pm
+    cred = _pm.check_git_credential_helper()
+    if cred["configured"]:
+        check("Git HTTPS 凭据存储 | Git HTTPS Credential", True,
+              f"{cred['helper']} ({cred['scope']})")
+    else:
+        check("Git HTTPS 凭据存储 | Git HTTPS Credential", False,
+              "运行 ./niuma → 管理项目 → 新建项目 → 按引导配置 | Run ./niuma → config")
+
+    ssh = _pm.check_ssh_keys()
+    if ssh["has_key"]:
+        agent_note = " (agent running)" if ssh["agent_running"] else " (agent not running)"
+        check(f"Git SSH 密钥 | Git SSH Keys{agent_note}", True,
+              ", ".join(ssh["keys"]))
+    else:
+        check("Git SSH 密钥 | Git SSH Keys", False,
+              "未找到 SSH 密钥 | run: ssh-keygen -t ed25519")
+
     print()
     if all_ok:
         print("[OK] 一切就绪 | All checks passed.")
@@ -351,6 +380,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
 
     node_results: list[NodeResult] = []
     completed_context: dict[str, str] = {}
+    limits = get_retry_limits()
 
     for i, node in enumerate(dag.topological_order(), 1):
         t_node = time.time()
@@ -374,6 +404,14 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
                 print(f"    → git commit: src/{node.node_id}.ts (Weak Model)")
         else:
             print(f"  X {node.node_id} 失败 | failed ({nr.iteration_count} 轮 | iter)")
+
+        # 早期终止：失败节点超过阈值时跳过剩余节点
+        fail_count = sum(1 for nr in node_results if nr.status == NodeStatus.FAILED)
+        early_abort_ratio = limits.get("early_abort_fail_ratio", 0.6)
+        remaining = len(dag.nodes) - i
+        if remaining > 0 and fail_count / len(dag.nodes) >= early_abort_ratio:
+            print(f"  [!!] 失败节点比例 {fail_count}/{len(dag.nodes)} 达到 {early_abort_ratio:.0%} 阈值，跳过剩余 {remaining} 个节点")
+            break
 
     passed_count = sum(1 for nr in node_results if nr.status == NodeStatus.PASSED)
 
@@ -408,14 +446,29 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
 
         print(f"  X FAIL: {rv.suggestions[:200]}")
         print(f"    → git commit: .niuma/review.md (Strong Model — FAIL)")
+
+        # 找出所有需要重做的节点：审核失败的节点 + 依赖它们的下游节点
+        retry_ids: set[str] = set(rv.failed_nodes)
+        changed = True
+        while changed:
+            changed = False
+            for node in dag.nodes:
+                if node.node_id not in retry_ids:
+                    if any(dep in retry_ids for dep in node.dependencies):
+                        retry_ids.add(node.node_id)
+                        changed = True
+
         for node in dag.topological_order():
-            if node.node_id in rv.failed_nodes:
-                print(f"    重做 | retry: {node.node_id}...")
+            if node.node_id in retry_ids:
+                why = "审核失败" if node.node_id in rv.failed_nodes else "上游节点已重做"
+                print(f"    重做 | retry: {node.node_id} ({why})...")
                 nr = worker.execute_node(node, completed_context, task_id=task_id, review_feedback=rv.suggestions, verbose=verbose)
                 for j, old in enumerate(node_results):
                     if old.node_id == node.node_id:
                         node_results[j] = nr
                         break
+                else:
+                    node_results.append(nr)
                 if nr.status == NodeStatus.PASSED:
                     completed_context[node.node_id] = nr.generated_code
                     _save_output(base, task_id, node, nr)

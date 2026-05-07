@@ -1,0 +1,9 @@
+{
+  "task_id": "code_review_hard_03",
+  "dimension": "code_review",
+  "difficulty": "hard",
+  "language": "text",
+  "prompt": "审查以下博客 API 服务。从安全、性能、数据完整性、错误处理四个维度列出至少 4 个问题。\n\n```python\nfrom flask import Flask, request\nimport sqlite3\n\napp = Flask(__name__)\n\n@app.route('/posts', methods=['GET'])\ndef get_posts():\n    db = sqlite3.connect('blog.db')\n    posts = db.execute('SELECT * FROM posts').fetchall()\n    db.close()\n    return str(posts)\n\n@app.route('/posts/search', methods=['GET'])\ndef search_posts():\n    keyword = request.args.get('q', '')\n    db = sqlite3.connect('blog.db')\n    query = f\"SELECT * FROM posts WHERE title LIKE '%{keyword}%'\"\n    posts = db.execute(query).fetchall()\n    db.close()\n    return str(posts)\n\n@app.route('/posts/<int:post_id>', methods=['DELETE'])\ndef delete_post(post_id):\n    db = sqlite3.connect('blog.db')\n    db.execute('DELETE FROM posts WHERE id = ?', [post_id])\n    db.commit()\n    db.close()\n    return 'deleted'\n\nif __name__ == '__main__':\n    app.run(debug=True)\n```",
+  "judge": {"method": "keyword_match", "keyword_threshold": 3},
+  "keywords": ["sql", "注入", "injection", "like", "f-string", "参数化", "parameterized", "debug", "生产", "production", "异常", "error", "处理", "handler", "handle", "线程", "thread", "check_same_thread", "json", "JSON", "Content-Type", "认证", "auth", "权限", "authorization"]
+}

@@ -1,0 +1,19 @@
+{
+  "task_id": "code_fix_hard_03",
+  "dimension": "code_fix",
+  "difficulty": "hard",
+  "language": "python",
+  "prompt": "以下笔记管理 CLI 工具有 4 个 bug：\n1. `add` 不检查参数数量——缺参数时崩溃\n2. `view` 越界不检查——输入不存在的序号崩溃\n3. `delete` 不检查——缺少参数或越界都崩溃\n4. `list` 显示顺序反了——旧笔记应该排在新笔记后面\n\n请修复所有 bug，使所有测试用例通过。只输出修复后的完整代码，放在 ```python 代码块中。\n\n```python\nimport sys, json, os\nfrom datetime import datetime\nFILE = 'notes.json'\ndef load():\n    if os.path.exists(FILE):\n        return json.loads(open(FILE, encoding='utf-8').read())\n    return []\ndef save(notes):\n    json.dump(notes, open(FILE, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)\n\nnotes = load()\ncmd = sys.argv[1]\nif cmd == 'add':\n    notes.append({'title': sys.argv[2], 'content': sys.argv[3], 'time': datetime.now().isoformat()})\n    save(notes)\n    print('OK')\nelif cmd == 'view':\n    n = notes[int(sys.argv[2]) - 1]\n    print(f\"{n['title']}\\n{n['content']}\\n{n['time']}\")\nelif cmd == 'delete':\n    notes.pop(int(sys.argv[2]) - 1)\n    save(notes)\n    print('OK')\nelif cmd == 'list':\n    for i, n in enumerate(notes, 1):\n        print(f\"{i}. {n['title']} ({n['time'][:16]})\")\n```",
+  "judge": {"method": "cli"},
+  "test_cases": [
+    {"args": ["add"], "expect_success": false, "contains_any": ["用法", "参数", "usage", "arg", "help", "错误", "error"]},
+    {"args": ["add", "备忘", "今天开会"], "contains_any": ["备忘", "OK", "ok"]},
+    {"args": ["add", "购物", "买牛奶"], "contains_any": ["购物", "OK", "ok"]},
+    {"args": ["list"], "contains_all": ["备忘", "购物"], "contains_not": ["1. 购物"]},
+    {"args": ["view", "99"], "expect_success": false, "contains_any": ["无效", "不存在", "越界", "错误", "invalid", "range", "error"]},
+    {"args": ["delete"], "expect_success": false, "contains_any": ["用法", "参数", "usage", "错误", "error"]},
+    {"args": ["delete", "99"], "expect_success": false, "contains_any": ["无效", "不存在", "越界", "错误", "invalid", "range"]},
+    {"args": ["delete", "1"], "expect_success": true},
+    {"args": ["list"], "contains_all": ["购物"], "contains_not": ["备忘"]}
+  ]
+}
