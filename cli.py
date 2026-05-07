@@ -573,26 +573,30 @@ def _git_menu(project: dict) -> None:
         _clear()
         _title(f"Git 记录 | Git Log — {project['name']}")
 
-        # 显示当前分支 git log
-        log_lines = project_manager.get_branch_log(proj_path)
-        if log_lines:
-            for line in log_lines.splitlines()[:15]:
-                print(f"  {line}")
-        else:
-            print("  (无提交记录 | no commits)")
-
-        # 当前分支
         current_branch = project_manager.git_run(proj_path, ["branch", "--show-current"], check=False).strip()
         branches = project_manager.list_task_branches(proj_path)
-        print()
-        print(f"  当前分支 | Current: {current_branch}")
-        if branches:
-            print(f"  niuma 任务分支 | task branches: {', '.join(branches[:10])}")
+
+        # 显示当前分支的 git log
+        print(f"  当前分支: {current_branch}")
+        print(f"  {'-'*45}")
+        log_lines = project_manager.get_branch_log(proj_path, current_branch)
+        if log_lines:
+            for line in log_lines.splitlines()[:12]:
+                print(f"  {line}")
+        else:
+            print("  (无提交记录)")
         print()
 
+        # 任务分支列表
         if branches:
-            print(f"  P. Push 当前分支到远程 | Push current branch to remote")
-        print(f"  B/ESC. 返回 | Back")
+            print(f"  任务分支 ({len(branches)}):")
+            for i, b in enumerate(branches, 1):
+                marker = " ← 当前" if b == current_branch else ""
+                print(f"    {i}. {b}{marker}")
+            print()
+            print(f"  P. Push {current_branch} 到远程")
+            print(f"  D. 删除旧分支")
+        print(f"  B/ESC. 返回")
         print()
 
         choice = _ask("请选择 | Select", "B").lower()
@@ -600,8 +604,6 @@ def _git_menu(project: dict) -> None:
             return
         elif choice == "p" and branches:
             target = current_branch if current_branch.startswith("niuma") else branches[0]
-            if not current_branch.startswith("niuma"):
-                print(f"  当前不在 niuma 分支，将 push: {target}")
             proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
             print(f"  Pushing {target}...")
             ok, msg = project_manager.push_branch(proj_path, target, proxy=proxy)
@@ -610,6 +612,30 @@ def _git_menu(project: dict) -> None:
             else:
                 print(f"  [!!] Push 失败 | Failed: {msg}")
             _wait()
+        elif choice == "d" and len(branches) > 1:
+            # 删除旧分支
+            _clear()
+            _title("删除旧分支 | Delete Old Branches")
+            for i, b in enumerate(branches, 1):
+                if b != current_branch:
+                    print(f"  {i}. {b}")
+            print()
+            print(f"  B/ESC. 返回")
+            print()
+            choice2 = _ask("选择要删除的分支编号 | Select branch number", "B")
+            if choice2 and choice2 not in ("b", "esc"):
+                try:
+                    idx = int(choice2) - 1
+                    if 0 <= idx < len(branches) and branches[idx] != current_branch:
+                        target = branches[idx]
+                        ok = project_manager.delete_task_branch(proj_path, target)
+                        if ok:
+                            print(f"  [OK] 已删除 {target}")
+                        else:
+                            print(f"  [!!] 删除失败")
+                        _wait()
+                except (ValueError, IndexError):
+                    pass
 
 
 def _clarify_and_run(project: dict) -> None:

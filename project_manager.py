@@ -148,9 +148,9 @@ def git_run(repo_path: str | Path, args: list[str], check: bool = True) -> str:
 
 
 def create_task_branch(repo_path: str | Path, task_id: str) -> str:
-    """创建任务分支 niuma/<task-id> 并切换过去。返回分支名。"""
+    """创建任务分支 niuma/<task-id>，始终从 main 分叉。返回分支名。"""
     branch = f"{BRANCH_PREFIX}/{task_id}"
-    # 从当前 HEAD 直接切出新分支（不强制切 main，避免工作区冲突）
+    git_run(repo_path, ["checkout", "main"])
     git_run(repo_path, ["checkout", "-b", branch])
     return branch
 
@@ -512,9 +512,19 @@ def get_all_branches_log(repo_path: str | Path) -> str:
     return output if output else ""
 
 
-def get_branch_log(repo_path: str | Path, max_count: int = 20) -> str:
-    """返回当前分支的 git log（含时间）。"""
+def get_branch_log(repo_path: str | Path, branch: str = "", max_count: int = 20) -> str:
+    """返回指定分支的 git log（含时间）。"""
+    target = [branch] if branch else []
     output = git_run(repo_path, [
-        "log", "--format=%h %ad %s", "--date=short", f"--max-count={max_count}",
-    ], check=False)
+        "log", "--format=%h %ad %s", "--date=format:%m-%d %H:%M", f"--max-count={max_count}",
+    ] + target, check=False)
     return output if output else ""
+
+
+def delete_task_branch(repo_path: str | Path, branch: str) -> bool:
+    """删除一个 niuma 任务分支。返回是否成功。"""
+    try:
+        git_run(repo_path, ["branch", "-D", branch])
+        return True
+    except RuntimeError:
+        return False
