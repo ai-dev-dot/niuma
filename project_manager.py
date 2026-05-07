@@ -148,9 +148,12 @@ def git_run(repo_path: str | Path, args: list[str], check: bool = True) -> str:
 
 
 def create_task_branch(repo_path: str | Path, task_id: str) -> str:
-    """创建任务分支 niuma/<task-id>，始终从 main 分叉。返回分支名。"""
-    branch = f"{BRANCH_PREFIX}/{task_id}"
+    """创建任务分支 niuma/<task-id>，始终从 main 分叉。自动清理旧任务分支。"""
     git_run(repo_path, ["checkout", "main"])
+    # 删除所有旧 niuma 分支（一个任务 = 一个分支）
+    for old in list_task_branches(repo_path):
+        git_run(repo_path, ["branch", "-D", old], check=False)
+    branch = f"{BRANCH_PREFIX}/{task_id}"
     git_run(repo_path, ["checkout", "-b", branch])
     return branch
 
