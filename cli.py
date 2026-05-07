@@ -876,22 +876,17 @@ def _getch() -> str:
             tty.setraw(fd)
             ch = sys.stdin.read(1)
             if ch == "\x1b":
-                # 读缓冲区内所有后续字符。SSH 下 `[A` 可能延迟到达。
-                rest = ""
-                deadline = _time.time() + 0.5
-                while _time.time() < deadline:
-                    r, _, _ = select.select([sys.stdin], [], [], 0.1)
-                    if not r:
-                        break
-                    c = sys.stdin.read(1)
-                    if not c:
-                        break
-                    rest += c
-                if rest == "[A": return "UP"
-                if rest == "[B": return "DOWN"
-                if rest == "[Z": return "SHTAB"
-                if rest: return "\x1b" + rest
-                return "\x1b"
+                # 只检测 Shift+Tab，箭头键吞掉不响应
+                r, _, _ = select.select([sys.stdin], [], [], 0.15)
+                if r:
+                    c2 = sys.stdin.read(1)
+                    if c2 == "[":
+                        r2, _, _ = select.select([sys.stdin], [], [], 0.1)
+                        if r2:
+                            c3 = sys.stdin.read(1)
+                            if c3 == "Z": return "SHTAB"
+                            # [A/[B/[C/[D = 箭头键，吞掉
+                return "\x1b"  # 裸 ESC
             if ch == "\t": return "\t"
             return ch
         finally:
@@ -918,7 +913,7 @@ def _menu(title: str, options: list[str], header: str = "") -> int | None:
             else:
                 print(f"  {i+1}. {opt}")
         print()
-        print("  ↑↓/Tab 导航 | 数字选择 | Enter 确认 | ESC 返回")
+        print("  Tab 导航 | 数字选择 | Enter 确认 | ESC 返回")
 
         ch = _getch()
         if ch == "\x1b":
@@ -929,10 +924,8 @@ def _menu(title: str, options: list[str], header: str = "") -> int | None:
             idx = (idx + 1) % n
         elif ch == "SHTAB":
             idx = (idx - 1) % n
-        elif ch == "UP":
-            idx = (idx - 1) % n
-        elif ch == "DOWN":
-            idx = (idx + 1) % n
+        elif ch == "":  # 吞掉的箭头键，忽略
+            pass
         elif ch.isdigit():
             num = int(ch)
             if 1 <= num <= n:
