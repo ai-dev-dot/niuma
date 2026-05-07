@@ -491,12 +491,27 @@ def seed_git_credentials(host: str, username: str, token: str) -> tuple[bool, st
             env=env,
         )
         if r.returncode == 0:
+            # 额外：直接写入 ~/.git-credentials 作为保底
+            cred_file = Path.home() / ".git-credentials"
+            cred_line = f"https://{username}:{token}@{host}\n"
+            try:
+                existing = cred_file.read_text(encoding="utf-8") if cred_file.exists() else ""
+                if cred_line.strip() not in existing:
+                    cred_file.write_text(existing + cred_line, encoding="utf-8")
+            except Exception:
+                pass
             return True, "凭据已保存到 git 凭据管理器 | Credential saved"
         else:
-            err = r.stderr.strip()
-            if err:
-                return False, f"凭据保存失败 | Failed: {err[:200]}"
-            return False, "凭据保存失败: credential helper 可能未配置"
+            # git credential approve 失败，直接写文件
+            cred_file = Path.home() / ".git-credentials"
+            cred_line = f"https://{username}:{token}@{host}\n"
+            try:
+                existing = cred_file.read_text(encoding="utf-8") if cred_file.exists() else ""
+                if cred_line.strip() not in existing:
+                    cred_file.write_text(existing + cred_line, encoding="utf-8")
+                return True, "凭据已写入 ~/.git-credentials"
+            except Exception as e2:
+                return False, f"凭据保存失败 | Failed: {str(e2)[:200]}"
     except _sp.TimeoutExpired:
         return False, "凭据保存超时 — credential helper 可能未正确配置"
     except FileNotFoundError:
