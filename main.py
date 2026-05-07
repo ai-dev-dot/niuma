@@ -347,7 +347,7 @@ def run_task(task_description: str, project_path: str = "", verbose: bool = Fals
     req_summary = task_description.strip().replace("\n", " ")[:80]
     _pm.commit_file(
         str(base), ".niuma/requirement.md", task_description,
-        _pm.GIT_AUTHOR_COMPILER, f"requirement: {req_summary}",
+        _pm.GIT_AUTHOR_COMPILER, _pm.msg_requirement(task_description),
     )
     _write_log({"role": "cli", "action": "requirement_confirmed"})
     if verbose:

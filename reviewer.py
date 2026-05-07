@@ -146,13 +146,12 @@ def commit_review(result: ReviewResult, repo_path: str, task_id: str, task_desc:
         for nid in result.failed_nodes:
             content += f"- {nid}\n"
 
-    short_summary = result.summary if result.summary else task_desc.strip().replace("\n", " ")[:60]
     _pm.commit_file(
         repo_path,
         ".niuma/review.md",
         content,
         _pm.GIT_AUTHOR_REVIEWER,
-        f"review: {status}{score_str} — {short_summary}",
+        _pm.msg_review(result.passed, result.score, result.summary),
     )
     return str(Path(repo_path) / ".niuma" / "review.md")
 

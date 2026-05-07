@@ -124,10 +124,54 @@ def delete_project(name: str) -> None:
 # Git 操作 —— 强/弱模型通过 git 分支通信
 # ═══════════════════════════════════════════════════════════════
 
-GIT_AUTHOR_COMPILER = ("Strong Model", "niuma@compiler")
-GIT_AUTHOR_WORKER = ("Weak Model", "niuma@worker")
-GIT_AUTHOR_REVIEWER = ("Strong Model", "niuma@compiler")
+GIT_AUTHOR_COMPILER = ("强模型", "niuma@compiler")
+GIT_AUTHOR_WORKER = ("弱模型", "niuma@worker")
+GIT_AUTHOR_REVIEWER = ("强模型", "niuma@compiler")
 BRANCH_PREFIX = "niuma"
+
+
+def _zh() -> bool:
+    """当前是否为中文语言。"""
+    import config as _cfg
+    return _cfg.get_lang() != "en"
+
+
+def msg_requirement(desc: str) -> str:
+    """需求确认的 commit message。"""
+    short = desc.strip().replace("\n", " ")[:60]
+    if _zh():
+        return f"需求确认: {short}"
+    return f"Requirement confirmed: {short}"
+
+
+def msg_compiler(nodes: int, summary: str = "") -> str:
+    """编译器完成 DAG 的 commit message。"""
+    if _zh():
+        extra = f" — {summary}" if summary else ""
+        return f"任务分解完成，拆成了 {nodes} 个模块{extra}"
+    extra = f" — {summary}" if summary else ""
+    return f"Task decomposed into {nodes} modules{extra}"
+
+
+def msg_worker(node_id: str, name: str, passed: bool, iterations: int) -> str:
+    """Worker 完成节点的 commit message。"""
+    status = "完成了" if passed else "未能完成"
+    if _zh():
+        return f"完成了模块 {name}({node_id})，尝试了 {iterations} 次" if passed else \
+               f"未能完成模块 {name}({node_id})，尝试了 {iterations} 次"
+    return f"{'Completed' if passed else 'Failed'} module {name}({node_id}) after {iterations} attempt(s)"
+
+
+def msg_review(passed: bool, score: int, summary: str) -> str:
+    """审核结论的 commit message。"""
+    s = f" [{score}/10]" if score > 0 else ""
+    if _zh():
+        if passed:
+            return f"审查通过{s}: {summary}" if summary else f"审查通过{s}"
+        return f"审查未通过{s}: {summary}" if summary else f"审查未通过{s}"
+    if passed:
+        return f"Review passed{s}: {summary}" if summary else f"Review passed{s}"
+    return f"Review failed{s}: {summary}" if summary else f"Review failed{s}"
 
 
 def git_run(repo_path: str | Path, args: list[str], check: bool = True) -> str:

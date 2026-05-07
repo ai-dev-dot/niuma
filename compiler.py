@@ -356,6 +356,6 @@ def commit_dag(dag: DAG, repo_path: str, task_id: str) -> str:
         ".niuma/dag.json",
         content,
         _pm.GIT_AUTHOR_COMPILER,
-        f"compiler: DAG for task {task_id} ({len(dag.nodes)} nodes)",
+        _pm.msg_compiler(len(dag.nodes)),
     )
     return str(Path(repo_path) / ".niuma" / "dag.json")
