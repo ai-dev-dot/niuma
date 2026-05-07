@@ -607,8 +607,16 @@ def _git_menu(project: dict) -> None:
         proxy = _ask_text("代理 (不需要则留空) | Proxy", "")
         print(f"  Pushing {current_branch}...")
         ok, msg = project_manager.push_branch(proj_path, current_branch, proxy=proxy)
-        print(f"  {'[OK]' if ok else '[!!]'} {msg}" if msg else f"  {'[OK]' if ok else '[!!]'}")
+        if ok:
+            print(f"  [OK] Push 完成" + (f" — {msg}" if msg else ""))
+            # Push 成功后自动切回 main 并清理分支
+            project_manager.switch_branch(proj_path, "main")
+            project_manager.delete_task_branch(proj_path, current_branch)
+            print(f"  已切回 main，本地分支已清理")
+        else:
+            print(f"  [!!] Push 失败 — {msg}")
         _wait()
+        return
 
 
 def _clarify_and_run(project: dict) -> None:
