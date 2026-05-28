@@ -96,11 +96,11 @@ outputs/ ──── 最终代码 + metrics
 
 ## 语言和技术栈
 
-- **编排内核**：Python 3.10+（纯标准库，零第三方运行时依赖）
-- **生成代码目标**：TypeScript（默认）或 Python，由 DAG 节点的 `signature.language` 决定
-- **TypeScript 测试**：Jest + ts-jest（项目根目录 `node_modules/`）
-- **Python 测试**：pytest
-- **系统测试**：`system_tests/` 下 34 个 pytest 用例
+- **Python** 3.10+ — 编排内核，零第三方运行时依赖（仅标准库：`urllib.request`、`json`、`sqlite3`、`subprocess`）
+- **Node.js** 18+ — 仅用于 TypeScript 沙箱执行
+- **TypeScript**：target ES2020，module commonjs，strict true
+- **测试**：Python 用 pytest，TypeScript 用 Jest + ts-jest（preset `ts-jest`，testTimeout 30s）
+- **生成代码目标**：TypeScript（默认）或 Python，由 DAG 节点 `signature.language` 决定
 - **数据存储**：SQLite（项目元数据）、JSONL（日志和指标）
 
 ## 开发注意事项
